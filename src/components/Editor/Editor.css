@@ -1,0 +1,240 @@
+/* Core Layout */
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-table {
+  flex: 1;
+  overflow: hidden;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Base Data Grid Styles */
+.grid-view-container {
+  flex: 1;
+  position: relative;
+  outline: none;
+}
+
+.grid-header-wrapper {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.grid-header {
+  display: flex;
+  height: 36px;
+}
+
+.grid-header-cell {
+  background-color: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+  text-align: left;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Individual Cell Styles */
+.grid-cell {
+  border-right: 1px solid #efefef;
+  border-bottom: 1px solid #efefef;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: cell;
+  user-select: none;
+  background-color: #fff;
+}
+
+.grid-cell:hover {
+  background-color: #f0f7ff;
+}
+
+.grid-cell.selected {
+  background-color: #e8f0fe;
+  box-shadow: inset 0 0 0 2px #1a73e8;
+  z-index: 5;
+}
+
+.grid-cell.selected-range {
+  background-color: #e8f0fe;
+}
+
+.grid-cell.search-match {
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+.grid-cell.current-match {
+  background-color: #ffd966;
+  font-weight: 600;
+}
+
+.grid-cell.invalid-key {
+  background-color: #fce8e6;
+  color: #d93025;
+}
+
+.grid-cell.invalid-key.selected {
+  box-shadow: inset 0 0 0 2px #d93025;
+}
+
+/* Placeholder Center */
+.table-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+}
+
+.table-placeholder p {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.table-placeholder span {
+  font-size: 13px;
+}
+
+/* Bottom Editor Area */
+.editor-richtext {
+  height: 220px;
+  min-height: 150px;
+  max-height: 500px;
+  border-top: 2px solid #e0e0e0;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-richtext-header {
+  padding: 8px 16px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.richtext-editor-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.richtext-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+
+  color: #ccc;
+}
+
+/* Fill Handle */
+.fill-handle {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  background-color: #1a73e8; /* Google Blue */
+  border: 1px solid #fff;
+  cursor: crosshair;
+  z-index: 20; /* Higher than selected border */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.grid-cell.fill-preview {
+  background-color: rgba(26, 115, 232, 0.1); /* Light blue overlay */
+  border-bottom: 2px dashed #1a73e8;
+  border-right: 2px dashed #1a73e8; /* Dashed border for preview */
+  /* Or just change border color? */
+}
+
+/* Ensure selected cell has relative positioning context if strictly needed, 
+   but cells are usually absolute in react-window.
+   We just need to make sure handle shows up on top. */
+
+/* Auto Fill Options */
+.fill-options-container {
+  /* Position is handled inline, but we can add transitions or z-index here */
+  pointer-events: auto;
+}
+
+.fill-options-button {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  transition: background-color 0.2s;
+}
+
+.fill-options-button:hover {
+  background-color: #f1f3f4;
+}
+
+.fill-options-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  padding: 4px 0;
+  min-width: 120px;
+  z-index: 100;
+}
+
+.fill-option-item {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.fill-option-item:hover {
+  background-color: #f1f3f4;
+}
+
+.fill-option-item.active {
+  font-weight: 500;
+  background-color: #e8f0fe;
+  color: #1a73e8;
+}
+
+.fill-option-item span {
+  margin-right: 8px;
+  font-size: 12px;
+}
