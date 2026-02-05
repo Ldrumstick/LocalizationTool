@@ -4,7 +4,6 @@ import { ProjectData, ValidationError } from '../types';
  * 验证服务
  * 提供全项目 Key 值格式校验与重复性检测
  */
-import { ProjectData, ValidationError } from '../types';
 
 /**
  * 验证服务 (Real-time Validation)

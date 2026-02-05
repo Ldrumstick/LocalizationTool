@@ -49,11 +49,11 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
     }
   };
 
-  const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionStart = (_e: React.CompositionEvent<HTMLInputElement>) => {
     isComposingRef.current = true;
   };
 
-  const handleCompositionUpdate = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionUpdate = (_e: React.CompositionEvent<HTMLInputElement>) => {
   };
 
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {

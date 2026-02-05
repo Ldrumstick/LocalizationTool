@@ -1,4 +1,4 @@
-import React, { memo, useRef } from 'react';
+import React, { memo } from 'react';
 import { FixedSizeList, areEqual } from 'react-window';
 import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
@@ -14,7 +14,7 @@ interface RowHeadersProps {
 }
 
 const RowHeader = memo(({ index, style, data }: any) => {
-  const { isSelected, onRowClick, onRowContextMenu } = data;
+  const { onRowClick, onRowContextMenu } = data;
   
   // Highlighting logic handled by parent passing data or checking store?
   // Checking store for every row might be expensive if not careful.

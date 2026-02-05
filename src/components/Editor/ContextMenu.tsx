@@ -80,7 +80,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
                                     }
                                 }
                             }}
-                            ref={(el) => {
+                            ref={() => {
                                 // Auto-focus logic could go here if needed
                             }}
                         />

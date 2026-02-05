@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useProjectStore } from '../stores/project-store';
 import { fileService } from '../services/file-service';
 
@@ -7,7 +7,6 @@ import { fileService } from '../services/file-service';
  * 定期检查并保存所有 dirty files
  */
 export const useAutoSave = (intervalMs = 30000) => {
-  const files = useProjectStore((state) => state.files);
   // 使用 useRef 避免 interval 闭包问题，或者直接依赖 files 变化重置 timer (频繁)
   // 这里选择简单定时器，每次执行时获取最新 state (通过 fileService 读取 store 是安全的，或者直接在 effect 中读取)
   

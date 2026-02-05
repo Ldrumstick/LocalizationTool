@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import FileList from './components/FileList/FileList';
 import Editor from './components/Editor/Editor';
 import FunctionPanel from './components/FunctionPanel/FunctionPanel';
