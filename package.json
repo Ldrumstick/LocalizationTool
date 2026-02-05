@@ -1,6 +1,6 @@
 {
   "name": "localization-tool",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "游戏本地化编辑工具 - 高性能 CSV 编辑器",
   "main": "dist-electron/main.js",
   "author": "开发团队",
@@ -96,14 +96,12 @@
     "win": {
       "target": [
         "nsis"
-      ],
-      "icon": "build/icon.ico"
+      ]
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools"
     }
   }
