@@ -28,9 +28,10 @@ export const validatorService = {
     // 遍历每个文件获取 Keys
     allFileIds.forEach(fileId => {
        // 如果被忽略，跳过
-       if (projectData.ignoredFileIds.includes(fileId)) return;
-       // 如果在 store 中且被标记 ignore，也跳过
-       if (projectData.files[fileId]?.isIgnored) return;
+       const isIgnoredInStore = projectData.ignoredFileIds && projectData.ignoredFileIds.includes(fileId);
+       const isIgnoredInFile = projectData.files[fileId]?.isIgnored;
+       
+       if (isIgnoredInStore || isIgnoredInFile) return;
 
        let keys: string[] = [];
        const loadedFile = projectData.files[fileId];

@@ -23,7 +23,8 @@ export const searchService = {
         isRegExp: options.isRegExp,
         isCaseSensitive: options.isCaseSensitive,
         isGlobalSearch: options.isGlobalSearch,
-        selectedFileId: options.selectedFileId
+        selectedFileId: options.selectedFileId,
+        ignoredFileIds: projectData.ignoredFileIds || [] // Pass ignored files
       });
       return results;
     } catch (error) {

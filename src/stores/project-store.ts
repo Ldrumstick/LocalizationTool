@@ -43,6 +43,12 @@ export const useProjectStore = create<ProjectState>()(
       setFiles: (files) =>
         set(
           produce((state: ProjectState) => {
+            // Sync ignored status from persisted list
+            Object.keys(files).forEach((fileId) => {
+              if (state.ignoredFileIds.includes(fileId)) {
+                files[fileId].isIgnored = true;
+              }
+            });
             state.files = files;
           })
         ),

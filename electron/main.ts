@@ -171,7 +171,7 @@ ipcMain.handle('file:read', async (_event, filePath: string) => {
 });
 
 // IPC 处理：全项目搜索
-ipcMain.handle('project:search', async (_event, { projectPath, query, isRegExp, isCaseSensitive, isGlobalSearch, selectedFileId }) => {
+ipcMain.handle('project:search', async (_event, { projectPath, query, isRegExp, isCaseSensitive, isGlobalSearch, selectedFileId, ignoredFileIds }) => {
   // ... (existing search logic implementation) ...
   // 为了简洁，这里保留原有的 search 实现，不做修改，只是占位表示位置
   // 实际代码中请不要删除原有的 search 实现
@@ -183,7 +183,11 @@ ipcMain.handle('project:search', async (_event, { projectPath, query, isRegExp, 
     
     if (isGlobalSearch) {
       const allFiles = await scanCSVFiles(projectPath);
-      filesToSearch = allFiles.map((f: any) => ({ path: f.filePath, id: f.id }));
+      // Filter out ignored files
+      const ignoredSet = new Set(ignoredFileIds || []);
+      filesToSearch = allFiles
+        .filter((f: any) => !ignoredSet.has(f.id))
+        .map((f: any) => ({ path: f.filePath, id: f.id }));
     } else if (selectedFileId) {
       const filePath = Buffer.from(selectedFileId, 'base64').toString();
       filesToSearch = [{ path: filePath, id: selectedFileId }];
