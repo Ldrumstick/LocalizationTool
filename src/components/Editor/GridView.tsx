@@ -27,8 +27,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const innerContainerRef = useRef<HTMLDivElement | null>(null);
     const headerRef = useRef<HTMLDivElement>(null);
     const gridRef = useRef<Grid>(null);
+    const gridOuterRef = useRef<HTMLDivElement | null>(null);
     const listRef = useRef<FixedSizeList>(null);
     const scrollTopRef = useRef(0);
+    const [gridScrollbarSize, setGridScrollbarSize] = useState({ w: 0, h: 0 });
 
     // Context Menu State
     const [contextMenuState, setContextMenuState] = useState<{
@@ -421,6 +423,132 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         setSelectedCell(newRow, newCol);
     }, [selectedCell, rows.length, headers.length, setSelectedCell]);
 
+    // Clipboard Operations
+    const handleCopy = useCallback(async (e: React.ClipboardEvent) => {
+        // Prevent default copy behavior if we are handling it
+        // But if user is editing in InlineEditor, we should let it pass?
+        // GridView container has focus, so if we are in input, input has focus.
+        // Easiest is to check if we are editing.
+        if (isEditing) return;
+
+        e.preventDefault();
+
+        if (!selectedFileId) return;
+        const file = useProjectStore.getState().files[selectedFileId];
+        if (!file) return;
+
+        let data = '';
+
+        if (selectedRange) {
+            const minRow = Math.min(selectedRange.start.row, selectedRange.end.row);
+            const maxRow = Math.max(selectedRange.start.row, selectedRange.end.row);
+            const minCol = Math.min(selectedRange.start.col, selectedRange.end.col);
+            const maxCol = Math.max(selectedRange.start.col, selectedRange.end.col);
+
+            const lines: string[] = [];
+            for (let r = minRow; r <= maxRow; r++) {
+                const rowData: string[] = [];
+                for (let c = minCol; c <= maxCol; c++) {
+                    rowData.push(file.rows[r]?.cells[c] || '');
+                }
+                lines.push(rowData.join('\t'));
+            }
+            data = lines.join('\n');
+        } else if (selectedCell) {
+            data = file.rows[selectedCell.row]?.cells[selectedCell.col] || '';
+        }
+
+        if (data) {
+            try {
+                await navigator.clipboard.writeText(data);
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
+        }
+    }, [selectedFileId, selectedRange, selectedCell, isEditing]);
+
+    const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+        if (isEditing) return;
+        e.preventDefault();
+
+        if (!selectedFileId) return;
+
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text) return;
+
+            const rowsData = text.split(/\r?\n/).map(line => line.split('\t'));
+            if (rowsData.length === 0) return;
+            // Remove last empty line if generic split causes it (excel often adds newline at end)
+            if (rowsData.length > 1 && rowsData[rowsData.length - 1].length === 1 && rowsData[rowsData.length - 1][0] === '') {
+                rowsData.pop();
+            }
+
+            const projectState = useProjectStore.getState();
+            const file = projectState.files[selectedFileId];
+            if (!file) return;
+
+            // Determine start position
+            let startRow = 0;
+            let startCol = 0;
+
+            if (selectedRange) {
+                startRow = Math.min(selectedRange.start.row, selectedRange.end.row);
+                startCol = Math.min(selectedRange.start.col, selectedRange.end.col);
+            } else if (selectedCell) {
+                startRow = selectedCell.row;
+                startCol = selectedCell.col;
+            } else {
+                return; // No selection to paste into
+            }
+
+            const newRows = [...file.rows];
+            let isDirty = false;
+
+            rowsData.forEach((rowData, rIdx) => {
+                const targetRowIdx = startRow + rIdx;
+
+                // Handle adding new rows if paste exceeds current row count
+                // BUT: projectStore has insertRows, but we need to do it in bulk.
+                // For now, let's limit to existing rows or simple push?
+                // Simple push might break 'rowIndex' consistency if not careful.
+                // Let's create new row objects if needed.
+                if (targetRowIdx >= newRows.length) {
+                    // We need to add rows. 
+                    // Construct new row
+                    const newRow: CSVRow = {
+                        rowIndex: targetRowIdx,
+                        cells: Array(headers.length).fill('')
+                    };
+                    newRows.push(newRow);
+                }
+
+                const targetRow = { ...newRows[targetRowIdx] };
+                const newCells = [...targetRow.cells];
+
+                rowData.forEach((cellData, cIdx) => {
+                    const targetColIdx = startCol + cIdx;
+                    if (targetColIdx < headers.length) {
+                        if (newCells[targetColIdx] !== cellData) {
+                            newCells[targetColIdx] = cellData;
+                            isDirty = true;
+                        }
+                    }
+                });
+
+                targetRow.cells = newCells;
+                newRows[targetRowIdx] = targetRow;
+            });
+
+            if (isDirty) {
+                projectState.updateFile(selectedFileId, { rows: newRows, isDirty: true });
+            }
+
+        } catch (err) {
+            console.error('Failed to paste', err);
+        }
+    }, [selectedFileId, selectedRange, selectedCell, isEditing, headers.length]);
+
     // 全局键盘监听（处理直接输入和 F2）
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -435,6 +563,18 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             if (editingLocation === 'editor-bar' && isCodeMirror) return;
 
             if (!selectedCell || !selectedFileId || isEditing) return;
+
+            if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+                e.preventDefault();
+                void handleCopy({ preventDefault: () => { } } as React.ClipboardEvent);
+                return;
+            }
+
+            if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+                e.preventDefault();
+                void handlePaste({ preventDefault: () => { } } as React.ClipboardEvent);
+                return;
+            }
 
             // F2 进入编辑模式（追加）
             if (e.key === 'F2') {
@@ -496,7 +636,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedCell, selectedFileId, isEditing, enterEditMode, navigateCell, editingLocation]);
+    }, [selectedCell, selectedFileId, isEditing, enterEditMode, navigateCell, editingLocation, handleCopy, handlePaste]);
 
     // 自动滚动到选中项
     useEffect(() => {
@@ -509,6 +649,15 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         }
     }, [selectedCell, width, height, rows.length]);
 
+    // 计算 Grid 外层滚动条尺寸，用于表头/行号对齐
+    useEffect(() => {
+        const outer = gridOuterRef.current;
+        if (!outer) return;
+        const w = Math.max(0, outer.offsetWidth - outer.clientWidth);
+        const h = Math.max(0, outer.offsetHeight - outer.clientHeight);
+        setGridScrollbarSize(prev => (prev.w === w && prev.h === h ? prev : { w, h }));
+    }, [width, height, headers.length, rows.length]);
+
 
 
 
@@ -516,21 +665,42 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
 
 
     // 同步滚动处理
-    const handleGridScroll = useCallback(({ scrollLeft, scrollTop, scrollUpdateWasRequested }: any) => {
+    const lastSyncTimeRef = useRef(0);
+    const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleGridScroll = useCallback(({ scrollLeft, scrollTop }: any) => {
+        const now = Date.now();
         scrollTopRef.current = scrollTop;
         // 1. Sync Column Headers (Horizontal)
         if (headerRef.current) {
             headerRef.current.scrollLeft = scrollLeft;
         }
 
-        // 2. Sync Row Headers (Vertical)
-        if (!scrollUpdateWasRequested && listRef.current) {
-            listRef.current.scrollTo(scrollTop);
+        // 2. Sync Row Headers (Vertical) - throttled to reduce React re-render frequency
+        const elapsed = now - lastSyncTimeRef.current;
+        if (elapsed >= 50) {
+            lastSyncTimeRef.current = now;
+            if (syncTimerRef.current !== null) {
+                clearTimeout(syncTimerRef.current);
+                syncTimerRef.current = null;
+            }
+            if (listRef.current) {
+                listRef.current.scrollTo(scrollTop);
+            }
+        } else if (syncTimerRef.current === null) {
+            // Trailing sync to ensure final position is correct
+            syncTimerRef.current = setTimeout(() => {
+                syncTimerRef.current = null;
+                lastSyncTimeRef.current = Date.now();
+                if (listRef.current) {
+                    listRef.current.scrollTo(scrollTopRef.current);
+                }
+            }, 50 - elapsed);
         }
     }, []);
 
     const handleListScroll = useCallback(({ scrollOffset, scrollUpdateWasRequested }: any) => {
-        if (!scrollUpdateWasRequested && gridRef.current) {
+        if (!scrollUpdateWasRequested && gridRef.current && Math.abs(scrollOffset - scrollTopRef.current) > 1) {
             gridRef.current.scrollTo({ scrollTop: scrollOffset });
         }
     }, []);
@@ -995,132 +1165,6 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         return items;
     };
 
-    // Clipboard Operations
-    const handleCopy = useCallback(async (e: React.ClipboardEvent) => {
-        // Prevent default copy behavior if we are handling it
-        // But if user is editing in InlineEditor, we should let it pass?
-        // GridView container has focus, so if we are in input, input has focus.
-        // Easiest is to check if we are editing.
-        if (isEditing) return;
-
-        e.preventDefault();
-
-        if (!selectedFileId) return;
-        const file = useProjectStore.getState().files[selectedFileId];
-        if (!file) return;
-
-        let data = '';
-
-        if (selectedRange) {
-            const minRow = Math.min(selectedRange.start.row, selectedRange.end.row);
-            const maxRow = Math.max(selectedRange.start.row, selectedRange.end.row);
-            const minCol = Math.min(selectedRange.start.col, selectedRange.end.col);
-            const maxCol = Math.max(selectedRange.start.col, selectedRange.end.col);
-
-            const lines: string[] = [];
-            for (let r = minRow; r <= maxRow; r++) {
-                const rowData: string[] = [];
-                for (let c = minCol; c <= maxCol; c++) {
-                    rowData.push(file.rows[r]?.cells[c] || '');
-                }
-                lines.push(rowData.join('\t'));
-            }
-            data = lines.join('\n');
-        } else if (selectedCell) {
-            data = file.rows[selectedCell.row]?.cells[selectedCell.col] || '';
-        }
-
-        if (data) {
-            try {
-                await navigator.clipboard.writeText(data);
-            } catch (err) {
-                console.error('Failed to copy', err);
-            }
-        }
-    }, [selectedFileId, selectedRange, selectedCell, isEditing]);
-
-    const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-        if (isEditing) return;
-        e.preventDefault();
-
-        if (!selectedFileId) return;
-
-        try {
-            const text = await navigator.clipboard.readText();
-            if (!text) return;
-
-            const rowsData = text.split(/\r?\n/).map(line => line.split('\t'));
-            if (rowsData.length === 0) return;
-            // Remove last empty line if generic split causes it (excel often adds newline at end)
-            if (rowsData.length > 1 && rowsData[rowsData.length - 1].length === 1 && rowsData[rowsData.length - 1][0] === '') {
-                rowsData.pop();
-            }
-
-            const projectState = useProjectStore.getState();
-            const file = projectState.files[selectedFileId];
-            if (!file) return;
-
-            // Determine start position
-            let startRow = 0;
-            let startCol = 0;
-
-            if (selectedRange) {
-                startRow = Math.min(selectedRange.start.row, selectedRange.end.row);
-                startCol = Math.min(selectedRange.start.col, selectedRange.end.col);
-            } else if (selectedCell) {
-                startRow = selectedCell.row;
-                startCol = selectedCell.col;
-            } else {
-                return; // No selection to paste into
-            }
-
-            const newRows = [...file.rows];
-            let isDirty = false;
-
-            rowsData.forEach((rowData, rIdx) => {
-                const targetRowIdx = startRow + rIdx;
-
-                // Handle adding new rows if paste exceeds current row count
-                // BUT: projectStore has insertRows, but we need to do it in bulk.
-                // For now, let's limit to existing rows or simple push?
-                // Simple push might break 'rowIndex' consistency if not careful.
-                // Let's create new row objects if needed.
-                if (targetRowIdx >= newRows.length) {
-                    // We need to add rows. 
-                    // Construct new row
-                    const newRow: CSVRow = {
-                        rowIndex: targetRowIdx,
-                        cells: Array(headers.length).fill('')
-                    };
-                    newRows.push(newRow);
-                }
-
-                const targetRow = { ...newRows[targetRowIdx] };
-                const newCells = [...targetRow.cells];
-
-                rowData.forEach((cellData, cIdx) => {
-                    const targetColIdx = startCol + cIdx;
-                    if (targetColIdx < headers.length) {
-                        if (newCells[targetColIdx] !== cellData) {
-                            newCells[targetColIdx] = cellData;
-                            isDirty = true;
-                        }
-                    }
-                });
-
-                targetRow.cells = newCells;
-                newRows[targetRowIdx] = targetRow;
-            });
-
-            if (isDirty) {
-                projectState.updateFile(selectedFileId, { rows: newRows, isDirty: true });
-            }
-
-        } catch (err) {
-            console.error('Failed to paste', err);
-        }
-    }, [selectedFileId, selectedRange, selectedCell, isEditing, headers.length]);
-
     const gridContent = useMemo(() => {
         if (width === 0 || height === 0) return null;
 
@@ -1150,7 +1194,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
 
                         {/* 行号栏 */}
                         <RowHeaders
-                            height={height - headerHeight}
+                            height={Math.max(0, height - headerHeight - gridScrollbarSize.h)}
                             rowCount={rows.length}
                             rowHeight={rowHeight}
                             listRef={listRef}
@@ -1165,7 +1209,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                         <div
                             className="grid-header-wrapper"
                             ref={headerRef}
-                            style={{ width: gridWidth, overflow: 'hidden', flexShrink: 0 }}
+                            style={{ width: Math.max(0, gridWidth - gridScrollbarSize.w), overflow: 'hidden', flexShrink: 0 }}
                         >
                             <div className="grid-header" style={{ width: totalWidth, display: 'flex' }}>
                                 {headers.map((header, index) => {
@@ -1287,6 +1331,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                         <div style={{ flex: 1, width: '100%' }}>
                             <Grid
                                 ref={gridRef}
+                                outerRef={gridOuterRef}
                                 columnCount={headers.length}
                                 columnWidth={getColWidth}
                                 height={height - headerHeight}
@@ -1361,7 +1406,8 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         gridRef,
         performFill,
         headerHeight,
-        rowHeight
+        rowHeight,
+        gridScrollbarSize
     ]);
 
 

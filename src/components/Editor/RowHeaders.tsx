@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { FixedSizeList, areEqual } from 'react-window';
 import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
@@ -71,23 +71,15 @@ const RowHeaders: React.FC<RowHeadersProps> = ({
   const file = useProjectStore((state) => selectedFileId ? state.files[selectedFileId] : undefined);
   const colCount = file?.headers.length || 0;
 
-  const handleRowClick = (rowIndex: number, e: React.MouseEvent) => {
+  const handleRowClick = useCallback((rowIndex: number, e: React.MouseEvent) => {
     // If shift key, extend selection
     if (e.shiftKey && colCount > 0) {
-        // We need a store access to get the current anchor (selectedCell)
-        // But we can't access store state inside callback without hook?
-        // Actually we can use useEditorStore.getState() for transient updates,
-        // but passing props or using the hook variables is better.
-        // We have `setSelectedCell` from hook. Do we have `selectedCell`?
-        // We need to fetch current state.
         const currentSelectedCell = useEditorStore.getState().selectedCell;
         
         if (currentSelectedCell) {
             const startRow = Math.min(currentSelectedCell.row, rowIndex);
             const endRow = Math.max(currentSelectedCell.row, rowIndex);
             
-            // Keep the anchor cell as is (or update? usually anchor stays)
-            // But we need to update range
             setSelectedRange(
                 { row: startRow, col: 0 },
                 { row: endRow, col: colCount - 1 }
@@ -103,12 +95,12 @@ const RowHeaders: React.FC<RowHeadersProps> = ({
          { row: rowIndex, col: colCount - 1 }
        );
     }
-  };
+  }, [colCount, setSelectedCell, setSelectedRange]);
 
-  const itemData = {
+  const itemData = useMemo(() => ({
     onRowClick: handleRowClick,
     onRowContextMenu: onRowContextMenu
-  };
+  }), [handleRowClick, onRowContextMenu]);
 
   return (
     <FixedSizeList
