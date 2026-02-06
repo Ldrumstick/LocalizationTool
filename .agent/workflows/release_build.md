@@ -1,34 +1,55 @@
 ---
-description: 自动发版与构建流程：版本管理、Tag推送、GitHub Action触发及本地构建
+description: 自动发版与构建流程：预验证、自动修复、变更日志生成、灵活打标
 ---
 
-1. **确定版本号**
-   - 检查用户是否在指令中指定了版本号。
-   - **如果指定了**：使用该版本号。
-   - **如果没有指定**：
-     1. 读取 `package.json` 中的 `version` 字段。
-     2. 将版本号的 Patch 位（最后一位）+1。
-     3. *示例：0.0.1 -> 0.0.2*
+1. **解析需求与模式**
+   - **确定模式**：
+     - **新版本发版 (默认)**：用户未指定或指定了新版本号。
+     - **更新现有标签 (Hotfix)**：用户明确要求“更新标签”、“修复当前版本”或“Hotfix”。
+   - **确定版本号**：
+     - 如果是 *新版本*：读取 `package.json` 并计算下一版本（如未指定）。
+     - 如果是 *Hotfix*：读取当前 `package.json` 的版本（即现有 Tag）。
 
-2. **更新项目版本**
-   使用 npm 命令更新版本号（不自动打 tag，由后续步骤控制）。
-   *注意：将 `<VERSION>` 替换为第一步确定的实际版本号*
-   `npm version <VERSION> --no-git-tag-version`
+2. **构建验证与自动修复 (关键步骤)**
+   在打标签前，确保代码是健康的。
+   1. 执行构建检查：`npm run build`
+   2. **如果失败**：
+      - 分析错误日志。
+      - 修改代码修复错误。
+      - 提交修复：`git commit -am "fix: resolve build errors before release"`
+      - **循环执行**直到构建成功。
 
-3. **提交版本变更并打标签**
-   这将触发 GitHub Action 自动构建 Windows 和 Mac 包。
-   *注意：将 `<VERSION>` 替换为实际版本号*
-   ```powershell
-   git add package.json package-lock.json
-   git commit -m "chore(release): bump version to <VERSION>"
-   git tag v<VERSION>
-   git push origin main
-   git push origin v<VERSION>
-   ```
+3. **生成变更日志 (Changelog)**
+   获取自上一个 Tag 以来的变动，用于 Release Note。
+   - 运行：`git log $(git describe --tags --abbrev=0)..HEAD --pretty=format:"- %s (%h)"`
+   - 将输出内容保存，作为后续的 `<RELEASE_NOTES>`。
 
-4. **执行本地构建 (Windows)**
-   运行本地构建脚本生成当前平台的安装包。
-   > [!IMPORTANT]
-   > Windows 构建通常需要管理员权限。
-   
-   `powershell -ExecutionPolicy Bypass -File .\local_build.ps1`
+4. **执行发版**
+   根据第 1 步确定的模式执行：
+
+   - **场景 A: 新版本发版**
+     1. 更新文件版本：`npm version <NEW_VERSION> --no-git-tag-version`
+     2. 提交版本变更：`git commit -am "chore(release): bump version to <NEW_VERSION>"`
+     3. 创建带注释的标签：
+        ```powershell
+        git tag -a v<NEW_VERSION> -m "<RELEASE_NOTES>"
+        ```
+     4. 推送：
+        ```powershell
+        git push origin main
+        git push origin v<NEW_VERSION>
+        ```
+
+   - **场景 B: 更新现有标签 (Hotfix)**
+     1. 强制更新标签位置到当前 HEAD：
+        ```powershell
+        git tag -f -a v<CURRENT_VERSION> -m "<RELEASE_NOTES> (Hotfix Update)"
+        ```
+     2. 强制推送标签：
+        ```powershell
+        git push origin v<CURRENT_VERSION> --force
+        ```
+
+5. **本地构建通知**
+   提醒用户手动运行本地构建（由于需要管理员权限）。
+   - 提示：`请以管理员身份运行 ./local_build.ps1 以生成本地安装包。`
