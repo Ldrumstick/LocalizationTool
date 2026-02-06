@@ -1,11 +1,12 @@
-import React, { useEffect, useRef } from 'react';
-import { EditorView, basicSetup } from 'codemirror';
-import { EditorState, Compartment } from '@codemirror/state';
-import { markdown } from '@codemirror/lang-markdown';
-import { ViewUpdate, keymap } from '@codemirror/view';
 import { indentWithTab, insertTab } from '@codemirror/commands';
-import { useProjectStore } from '../../stores/project-store';
+import { Compartment, EditorState } from '@codemirror/state';
+import { ViewUpdate, keymap } from '@codemirror/view';
+import { EditorView, basicSetup } from 'codemirror';
+import React, { useEffect, useRef } from 'react';
+import { tmpDecorations } from '../../codemirror/tmp-decorations';
+import '../../codemirror/tmp-styles.css';
 import { useEditorStore } from '../../stores/editor-store';
+import { useProjectStore } from '../../stores/project-store';
 import './RichtextEditor.css';
 
 const RichtextEditor: React.FC = () => {
@@ -13,7 +14,7 @@ const RichtextEditor: React.FC = () => {
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
   const prevFileIdRef = useRef<string | undefined>();
-  
+
   // Store Selectors
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const selectedCell = useEditorStore((state) => state.selectedCell);
@@ -25,7 +26,7 @@ const RichtextEditor: React.FC = () => {
   const exitEditMode = useEditorStore((state) => state.exitEditMode);
   const setEditingLocation = useEditorStore((state) => state.setEditingLocation);
   const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
-  
+
   const projectFiles = useProjectStore((state) => state.files);
   const updateFile = useProjectStore((state) => state.updateFile);
 
@@ -60,12 +61,12 @@ const RichtextEditor: React.FC = () => {
       doc: displayValue,
       extensions: [
         basicSetup,
-        markdown(), // Markdown 语法高亮
+        tmpDecorations(), // TMP 标签 Typora 式渲染
         EditorView.lineWrapping, // 自动换行
-        
+
         // 使用 Compartment 动态管理只读状态
         readOnlyCompartment.current.of(EditorState.readOnly.of(!isEditing)),
-        
+
         // 监听内容变化，同步到 Store 的 tempValue
         // 使用 store 的实时状态判断是否处于编辑模式（避免闭包过期）
         EditorView.updateListener.of((update: ViewUpdate) => {
@@ -78,7 +79,7 @@ const RichtextEditor: React.FC = () => {
             }
           }
         }),
-        
+
         // 快捷键配置
         keymap.of([
           {
@@ -105,7 +106,7 @@ const RichtextEditor: React.FC = () => {
                 if (file) {
                   const newRows = [...file.rows];
                   const newCells = [...newRows[selectedCell.row].cells];
-                  
+
                   // 使用最新的 tempValue 进行保存
                   // 注意：这里我们应该确保 tempValue 是最新的。
                   // 由于 updateTempValue 是同步的，且我们使用 zustand，这里可以直接取最新的
@@ -115,26 +116,26 @@ const RichtextEditor: React.FC = () => {
                   // 为避免闭包过期问题，最好信任 tempValue 或者重新获取 state
                   // 这里的 run 函数闭包可能会捕获旧的 tempValue 吗？CodeMirror 的 keymap 可能会。
                   // 安全起见，做一次 store 读取或者利用 updateListener 已更新的 tempValue
-                  
+
                   // 由于 tempValue 是从 useEditorStore hook 获取的，组件重新渲染时会更新，
                   // keymap 配置是在 useEffect 依赖为空数组时创建的，所以这里的闭包 
                   // 确实可能捕获初始的 tempValue (空字符串)！这是一个常见陷阱。
-                  
+
                   // 修复方案：这里的逻辑应该放到外部引用其实例，或者依赖项更新重建扩展。
                   // 但频繁重建编辑器不好。
                   // 更好的方式：利用 EditorView.domEventHandlers 或者 dispatch 事件。
                   // 或者，直接操作 store 的 getState()
-                  
+
                   const currentStoreState = useEditorStore.getState();
                   const contentToSave = currentStoreState.tempValue;
-                  
+
                   newCells[selectedCell.col] = contentToSave;
                   newRows[selectedCell.row] = { ...newRows[selectedCell.row], cells: newCells };
                   updateFile(selectedFileId, { rows: newRows, isDirty: true });
-                  
+
                   // 退出编辑模式
                   exitEditMode(true);
-                  
+
                   // 跳转到下一行
                   const maxRow = file.rows.length;
                   if (selectedCell.row + 1 < maxRow) {
@@ -147,7 +148,7 @@ const RichtextEditor: React.FC = () => {
             }
           }
         ]),
-        
+
         // DOM 事件处理
         EditorView.domEventHandlers({
           keydown: (_e) => {
@@ -181,29 +182,29 @@ const RichtextEditor: React.FC = () => {
               // 2. 立即解除只读并设置焦点，无需等待 React 渲染周期
               // 获取点击位置的字符偏移量
               const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-              
+
               // 构建一个事务：解除只读 + 设置光标
               const transactionSpecs: any = {
                 effects: readOnlyCompartment.current.reconfigure(EditorState.readOnly.of(false))
               };
-              
+
               if (pos !== null) {
                 transactionSpecs.selection = { anchor: pos, head: pos };
               }
-              
+
               view.dispatch(transactionSpecs);
               view.focus();
-              
+
               // 返回 false 允许 CodeMirror 继续处理事件（如拖拽选区）
               return false;
             }
             return false;
           },
           focus: () => {
-             const currentStoreState = useEditorStore.getState();
-             if (currentStoreState.isEditing) {
-               setEditingLocation('editor-bar');
-             }
+            const currentStoreState = useEditorStore.getState();
+            if (currentStoreState.isEditing) {
+              setEditingLocation('editor-bar');
+            }
           }
         }),
 

@@ -1,0 +1,160 @@
+/* TMP 标签样式定义 */
+
+/* ============================================================================
+   语法高亮样式 (光标在标签内时显示)
+   ============================================================================ */
+
+/* 通用标签样式 - 灰色显示 */
+.cm-tmp-tag {
+  color: #888;
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 保留原始文本的标签 - 浅紫色标记 */
+.cm-tmp-tag-passthrough {
+  color: #9b59b6;
+  background-color: rgba(155, 89, 182, 0.1);
+  border-radius: 2px;
+}
+
+/* ============================================================================
+   渲染后的样式 (光标在标签外时显示)
+   ============================================================================ */
+
+/* 粗体 */
+.cm-tmp-b {
+  font-weight: bold;
+}
+
+/* 斜体 */
+.cm-tmp-i {
+  font-style: italic;
+}
+
+/* 下划线 */
+.cm-tmp-u {
+  text-decoration: underline;
+}
+
+/* 删除线 */
+.cm-tmp-s,
+.cm-tmp-strikethrough {
+  text-decoration: line-through;
+}
+
+/* 上标 */
+.cm-tmp-sup {
+  vertical-align: super;
+  font-size: 0.75em;
+}
+
+/* 下标 */
+.cm-tmp-sub {
+  vertical-align: sub;
+  font-size: 0.75em;
+}
+
+/* 大小写转换 */
+.cm-tmp-lowercase {
+  text-transform: lowercase;
+}
+
+.cm-tmp-uppercase,
+.cm-tmp-allcaps {
+  text-transform: uppercase;
+}
+
+.cm-tmp-smallcaps {
+  font-variant: small-caps;
+}
+
+/* 不换行 */
+.cm-tmp-nobr {
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   特殊 Widget 样式
+   ============================================================================ */
+
+/* 分页符 (page 标签) */
+.cm-tmp-page {
+  border: none;
+  border-top: 2px dashed #ccc;
+  margin: 8px 0;
+  height: 0;
+}
+
+/* 空白间距 (space 标签) */
+.cm-tmp-space {
+  display: inline-block;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================================================
+   标记/高亮样式
+   ============================================================================ */
+
+/* 默认高亮背景 */
+.cm-tmp-mark {
+  background-color: yellow;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* ============================================================================
+   链接样式
+   ============================================================================ */
+
+.cm-tmp-link {
+  color: #3498db;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cm-tmp-link:hover {
+  color: #2980b9;
+}
+
+/* ============================================================================
+   对齐样式
+   ============================================================================ */
+
+.cm-tmp-align {
+  display: block;
+}
+
+/* ============================================================================
+   暗色主题适配
+   ============================================================================ */
+
+.cm-editor.cm-dark .cm-tmp-tag {
+  color: #666;
+}
+
+.cm-editor.cm-dark .cm-tmp-tag-passthrough {
+  color: #bb86fc;
+  background-color: rgba(187, 134, 252, 0.15);
+}
+
+.cm-editor.cm-dark .cm-tmp-page {
+  border-top-color: #555;
+}
+
+.cm-editor.cm-dark .cm-tmp-space {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.cm-editor.cm-dark .cm-tmp-mark {
+  background-color: #b58900;
+  color: #000;
+}
+
+.cm-editor.cm-dark .cm-tmp-link {
+  color: #64b5f6;
+}
+
+.cm-editor.cm-dark .cm-tmp-link:hover {
+  color: #90caf9;
+}
