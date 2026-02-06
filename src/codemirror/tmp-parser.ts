@@ -62,12 +62,7 @@ const SELF_CLOSING_TAGS = new Set(['br', 'page', 'space']);
 /** 需要保留原始文本的标签列表 */
 export const PASSTHROUGH_TAGS = new Set(['font', 'gradient', 'sprite', 'style']);
 
-/** 带属性值的标签列表 */
-const TAGS_WITH_VALUE = new Set([
-  'color', 'alpha', 'mark', 'size', 'voffset', 'pos', 'rotate',
-  'cspace', 'mspace', 'space', 'indent', 'line-indent', 'margin',
-  'line-height', 'align', 'width', 'link', 'font', 'gradient', 'style', 'font-weight'
-]);
+
 
 /** 所有支持的标签 */
 const ALL_TAGS = [
@@ -110,15 +105,15 @@ const TAG_PATTERN = new RegExp(
  */
 export function parseTMPTags(text: string): TMPTag[] {
   const rawTags: RawTag[] = [];
-  
+
   // 重置正则表达式状态
   TAG_PATTERN.lastIndex = 0;
-  
+
   let match: RegExpExecArray | null;
   while ((match = TAG_PATTERN.exec(text)) !== null) {
     const [fullMatch, slash, tagName, quotedValue, unquotedValue] = match;
     const type = tagName.toLowerCase();
-    
+
     rawTags.push({
       type,
       from: match.index,
@@ -127,7 +122,7 @@ export function parseTMPTags(text: string): TMPTag[] {
       value: quotedValue ?? unquotedValue ?? undefined
     });
   }
-  
+
   // 匹配开闭标签
   return matchTags(rawTags);
 }
@@ -138,7 +133,7 @@ export function parseTMPTags(text: string): TMPTag[] {
 function matchTags(rawTags: RawTag[]): TMPTag[] {
   const result: TMPTag[] = [];
   const stack: Map<string, RawTag[]> = new Map();
-  
+
   for (const tag of rawTags) {
     // 处理自闭合标签
     if (SELF_CLOSING_TAGS.has(tag.type) && !tag.isClosing) {
@@ -155,7 +150,7 @@ function matchTags(rawTags: RawTag[]): TMPTag[] {
       });
       continue;
     }
-    
+
     if (!tag.isClosing) {
       // 开始标签：压入栈
       if (!stack.has(tag.type)) {
@@ -182,10 +177,10 @@ function matchTags(rawTags: RawTag[]): TMPTag[] {
       // 如果没有匹配的开始标签，忽略这个闭合标签
     }
   }
-  
+
   // 按起始位置排序
   result.sort((a, b) => a.from - b.from);
-  
+
   return result;
 }
 
@@ -211,7 +206,7 @@ export function isPositionInTag(pos: number, tags: TMPTag[]): boolean {
  */
 export function getTagStyle(tag: TMPTag): React.CSSProperties {
   const style: React.CSSProperties = {};
-  
+
   switch (tag.type) {
     case 'b':
       style.fontWeight = 'bold';
@@ -349,6 +344,6 @@ export function getTagStyle(tag: TMPTag): React.CSSProperties {
       break;
     // link, noparse, br, page, pos 等不需要样式处理
   }
-  
+
   return style;
 }
