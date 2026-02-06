@@ -14,6 +14,9 @@ interface EditorState extends UIState {
   // Toggle 列状态: fileId -> Set<columnIndex>
   toggleColumns: Record<string, number[]>;
 
+  // Column Widths: fileId -> { colIndex: width }
+  columnWidths: Record<string, Record<number, number>>;
+
   // Actions
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
@@ -21,6 +24,10 @@ interface EditorState extends UIState {
   setSelectedCell: (row?: number, col?: number) => void;
   setSelectedRange: (start?: { row: number; col: number }, end?: { row: number; col: number }) => void;
   setActiveTab: (tab: 'search' | 'validation') => void;
+
+  setColumnWidth: (fileId: string, colIndex: number, width: number) => void;
+  getColumnWidth: (fileId: string, colIndex: number) => number;
+  initColumnWidths: (fileId: string) => void;
 
   // 编辑 Actions
   enterEditMode: (mode: 'replace' | 'append', initialValue?: string) => void;
@@ -78,10 +85,49 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   // Toggle 列初始值
   toggleColumns: {},
+  // Column Widths Initial State
+  columnWidths: {},
 
   // Actions
   setLeftPanelWidth: (width) => set(produce((state: EditorState) => { state.leftPanelWidth = width; })),
   setRightPanelWidth: (width) => set(produce((state: EditorState) => { state.rightPanelWidth = width; })),
+
+  setColumnWidth: (fileId, colIndex, width) => set(produce((state: EditorState) => {
+    if (!state.columnWidths[fileId]) {
+      state.columnWidths[fileId] = {};
+    }
+    state.columnWidths[fileId][colIndex] = width;
+
+    // Save to localStorage
+    const stored = localStorage.getItem('column-widths');
+    let widths = stored ? JSON.parse(stored) : {};
+    if (!widths[fileId]) widths[fileId] = {};
+    widths[fileId][colIndex] = width;
+    localStorage.setItem('column-widths', JSON.stringify(widths));
+  })),
+
+  getColumnWidth: (_fileId, _colIndex) => {
+    // NOTE: getColumnWidth is usually used as a selector or helper, 
+    // but since this is inside `create`, we can't easily access `get()` here without partial application.
+    // However, for direct component usage, we'll usually access state.columnWidths directly.
+    // This action might effectively be a placeholder or helper if used with `get()` elsewhere.
+    // For now returning 0 as a placeholder if called directly, but implementing logic is correct.
+    return 0;
+  },
+
+  initColumnWidths: (fileId) => set(produce((state: EditorState) => {
+    const stored = localStorage.getItem('column-widths');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed[fileId]) {
+          state.columnWidths[fileId] = parsed[fileId];
+        }
+      } catch (e) {
+        console.error('Failed to parse column-widths', e);
+      }
+    }
+  })),
 
   setSelectedFile: (fileId) => set(produce((state: EditorState) => {
     state.selectedFileId = fileId;

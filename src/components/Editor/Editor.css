@@ -44,6 +44,25 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+  /* For resizer */
+}
+
+/* Column Resizer */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 15;
+  transition: background-color 0.2s;
+}
+
+.col-resize-handle:hover,
+.col-resize-handle.active {
+  background-color: #1a73e8;
 }
 
 /* Individual Cell Styles */

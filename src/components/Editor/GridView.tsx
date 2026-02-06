@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useMeasure from 'react-use-measure';
-import { FixedSizeList, FixedSizeGrid as Grid } from 'react-window';
+import { FixedSizeList, VariableSizeGrid as Grid } from 'react-window';
 import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
 import { CSVRow } from '../../types';
 import { generateFillData } from '../../utils/fill-logic';
 import { detectBooleanColumns, isBooleanValue, isTruthyValue, toggleBooleanValue } from '../../utils/toggle-column';
+import { calculateAutoFitWidth } from '../../utils/width-measurement';
 import ContextMenu, { MenuItem } from './ContextMenu';
 import InlineEditor from './InlineEditor';
 import RowHeaders from './RowHeaders';
@@ -16,9 +17,9 @@ interface GridViewProps {
 }
 
 const ROW_HEADER_WIDTH = 50;
+const DEFAULT_COLUMN_WIDTH = 180;
 
 const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
-    const columnWidth = 180;
     const rowHeight = 36;
     const headerHeight = 36;
 
@@ -36,7 +37,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         y: number;
         type: 'row' | 'col' | 'cell';
         targetIndex: number; // For row/col header context
+        headerRect?: { left: number, right: number }; // For auto-fit context if needed (optional)
     }>({ visible: false, x: 0, y: 0, type: 'cell', targetIndex: -1 });
+
+    // ... (Fill Handle State omitted for brevity, will be kept by matching StartLine/EndLine logic if careful) ...
 
     // Fill Handle State
     const [fillState, setFillState] = useState<{
@@ -95,6 +99,45 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const enterEditMode = useEditorStore((state) => state.enterEditMode);
     const setEditingLocation = useEditorStore((state) => state.setEditingLocation);
 
+    // Column Widths
+    const columnWidths = useEditorStore((state) => state.columnWidths);
+    const setColumnWidth = useEditorStore((state) => state.setColumnWidth);
+    const initColumnWidths = useEditorStore((state) => state.initColumnWidths);
+
+    // Resizing State
+    const [resizeState, setResizeState] = useState<{
+        colIndex: number;
+        startX: number;
+        startWidth: number;
+        currentWidth: number;
+    } | null>(null);
+
+    // Resize Handlers
+    useEffect(() => {
+        if (!resizeState) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const deltaX = e.clientX - resizeState.startX;
+            const newWidth = Math.max(50, Math.min(800, resizeState.startWidth + deltaX));
+
+            setResizeState(prev => prev ? { ...prev, currentWidth: newWidth } : null);
+        };
+
+        const handleMouseUp = () => {
+            if (selectedFileId) {
+                setColumnWidth(selectedFileId, resizeState.colIndex, resizeState.currentWidth);
+            }
+            setResizeState(null);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [resizeState, selectedFileId, setColumnWidth]);
+
     // Toggle 列状态
     const toggleColumns = useEditorStore((state) => state.toggleColumns);
     const initToggleColumns = useEditorStore((state) => state.initToggleColumns);
@@ -117,6 +160,31 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             initToggleColumns(selectedFileId, detected);
         }
     }, [selectedFileId, rows, headers, initToggleColumns]);
+
+    // 初始化列宽
+    useEffect(() => {
+        if (selectedFileId) {
+            initColumnWidths(selectedFileId);
+        }
+    }, [selectedFileId, initColumnWidths]);
+
+    const getColWidth = useCallback((index: number) => {
+        // Priority: Resizing > Store > Default
+        if (resizeState && resizeState.colIndex === index) {
+            return resizeState.currentWidth;
+        }
+        if (selectedFileId && columnWidths[selectedFileId] && columnWidths[selectedFileId][index]) {
+            return columnWidths[selectedFileId][index];
+        }
+        return DEFAULT_COLUMN_WIDTH;
+    }, [selectedFileId, columnWidths, resizeState]);
+
+    // Reset grid layout when widths change (either from store or resize drag)
+    useEffect(() => {
+        if (gridRef.current) {
+            gridRef.current.resetAfterColumnIndex(0);
+        }
+    }, [columnWidths, selectedFileId, resizeState?.currentWidth]); // Added resizeState.currentWidth to dependency
 
     // Fill Handle Helpers
     const handleFillMouseDown = (e: React.MouseEvent, row: number, col: number) => {
@@ -283,7 +351,11 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 performFill(fillState.startRow, fillState.endRow, fillState.startCol, fillState.endCol, fillState.targetRow, 'auto');
 
                 const totalRowHeight = (fillState.targetRow + 1) * rowHeight;
-                const totalColWidth = (fillState.endCol + 1) * columnWidth;
+                // Calculate total width up to endCol
+                let totalColWidth = 0;
+                for (let i = 0; i <= fillState.endCol; i++) {
+                    totalColWidth += getColWidth(i);
+                }
 
                 setFillMenuState({
                     visible: true,
@@ -1052,7 +1124,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const gridContent = useMemo(() => {
         if (width === 0 || height === 0) return null;
 
-        const totalWidth = headers.length * columnWidth;
+        const totalWidth = headers.reduce((sum, _, i) => sum + getColWidth(i), 0);
         const gridWidth = width - ROW_HEADER_WIDTH;
 
         return (
@@ -1095,8 +1167,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                             ref={headerRef}
                             style={{ width: gridWidth, overflow: 'hidden', flexShrink: 0 }}
                         >
-                            <div className="grid-header" style={{ width: totalWidth }}>
+                            <div className="grid-header" style={{ width: totalWidth, display: 'flex' }}>
                                 {headers.map((header, index) => {
+                                    const colW = getColWidth(index);
+
                                     const isColSelected = (() => {
                                         if (selectedRange) {
                                             const minCol = Math.min(selectedRange.start.col, selectedRange.end.col);
@@ -1112,7 +1186,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                         <div
                                             key={index}
                                             className={`grid-header-cell ${isColSelected ? 'selected' : ''}`}
-                                            style={{ width: columnWidth, minWidth: columnWidth }}
+                                            style={{ width: colW, minWidth: colW }}
                                             onClick={(e) => handleColumnClick(index, e)}
                                             onContextMenu={(e) => handleColumnContextMenu(index, e)}
                                             onDoubleClick={(e) => {
@@ -1141,23 +1215,9 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                                 // We can temporarily set selectedCell to {row: -1, col: index} then call enter.
                                                 // But row -1 might break other things (virtual list).
 
-                                                // Better approach: 
-                                                // 1. Set `editingLocation` to 'header'.
-                                                // 2. We need `editingCell` to track index.
-                                                // Let's try passing explicit cell to enterEditMode? No arg for that.
-
-                                                // Hack/Workaround:
-                                                // We enter edit mode normally, then override editingLocation.
-                                                // But we need editingCell.col to be correct.
-                                                // If we click header, usually we select the column (which sets selectedCell to 0, col).
-                                                // So selectedCell is already (0, col).
-                                                // So editingCell will be (0, col). 
-                                                // But `editingLocation` = 'header' distinguishes it from cell editing.
-                                                // So:
-
                                                 useEditorStore.setState({
                                                     isEditing: true,
-                                                    editingCell: { row: -1, col: index }, // Use -1 for header row
+                                                    editingCell: { row: -1, col: index },
                                                     editingLocation: 'header',
                                                     tempValue: header,
                                                     editMode: 'replace'
@@ -1193,6 +1253,30 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                             ) : (
                                                 header
                                             )}
+
+                                            {/* Resizer Handle */}
+                                            <div
+                                                className={`col-resize-handle ${resizeState?.colIndex === index ? 'active' : ''}`}
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    setResizeState({
+                                                        colIndex: index,
+                                                        startX: e.clientX,
+                                                        startWidth: colW,
+                                                        currentWidth: colW
+                                                    });
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Auto Fit
+                                                    if (selectedFileId) {
+                                                        const bestWidth = calculateAutoFitWidth(rows, index, header);
+                                                        setColumnWidth(selectedFileId, index, bestWidth);
+                                                    }
+                                                }}
+                                            />
                                         </div>
                                     );
                                 })}
@@ -1200,18 +1284,21 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                         </div>
 
                         {/* Grid */}
-                        <Grid
-                            ref={gridRef}
-                            columnCount={headers.length}
-                            columnWidth={columnWidth}
-                            height={height - headerHeight}
-                            rowCount={rows.length}
-                            rowHeight={rowHeight}
-                            width={gridWidth}
-                            onScroll={handleGridScroll}
-                        >
-                            {Cell}
-                        </Grid>
+                        <div style={{ flex: 1, width: '100%' }}>
+                            <Grid
+                                ref={gridRef}
+                                columnCount={headers.length}
+                                columnWidth={getColWidth}
+                                height={height - headerHeight}
+                                rowCount={rows.length}
+                                rowHeight={() => rowHeight}
+                                width={gridWidth}
+                                onScroll={handleGridScroll}
+                                itemData={{}}
+                            >
+                                {Cell}
+                            </Grid>
+                        </div>
                     </div>
                 </div>
 
@@ -1221,13 +1308,13 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                         style={{
                             position: 'absolute',
                             top: fillMenuState.rect.top,
-                            left: fillMenuState.rect.left + 5, // slightly offset
+                            left: fillMenuState.rect.left + 5,
                             zIndex: 100
                         }}
                     >
                         <div
                             className="fill-options-button"
-                            onClick={() => setFillMenuState({ ...fillMenuState, menuOpen: !fillMenuState.menuOpen })}
+                            onClick={() => setFillMenuState(prev => prev ? { ...prev, menuOpen: !prev.menuOpen } : null)}
                             title="自动填充选项"
                         >
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" /></svg>
@@ -1239,9 +1326,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                 <div
                                     className={`fill-option-item ${fillMenuState.activeMode === 'copy' ? 'active' : ''}`}
                                     onClick={() => {
+                                        if (!fillMenuState) return;
                                         const { startRow, endRow, startCol, endCol, targetRow } = fillMenuState.fillContext;
                                         performFill(startRow, endRow, startCol, endCol, targetRow, 'copy');
-                                        setFillMenuState({ ...fillMenuState, activeMode: 'copy', menuOpen: false });
+                                        setFillMenuState(prev => prev ? { ...prev, activeMode: 'copy', menuOpen: false } : null);
                                     }}
                                 >
                                     <span>○</span> 复制单元格
@@ -1249,9 +1337,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                 <div
                                     className={`fill-option-item ${fillMenuState.activeMode === 'auto' ? 'active' : ''}`}
                                     onClick={() => {
+                                        if (!fillMenuState) return;
                                         const { startRow, endRow, startCol, endCol, targetRow } = fillMenuState.fillContext;
                                         performFill(startRow, endRow, startCol, endCol, targetRow, 'auto');
-                                        setFillMenuState({ ...fillMenuState, activeMode: 'auto', menuOpen: false });
+                                        setFillMenuState(prev => prev ? { ...prev, activeMode: 'auto', menuOpen: false } : null);
                                     }}
                                 >
                                     <span>●</span> 智能填充
@@ -1262,7 +1351,18 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 )}
             </div>
         );
-    }, [width, height, headers, rows, Cell, handleGridScroll, handleListScroll, handleCopy, handlePaste, fillMenuState]);
+        // Dependencies updated
+    }, [
+        width, height, headers, rows,
+        getColWidth,
+        handleGridScroll, handleCopy, handlePaste,
+        fillMenuState,
+        Cell,
+        gridRef,
+        performFill,
+        headerHeight,
+        rowHeight
+    ]);
 
 
 
