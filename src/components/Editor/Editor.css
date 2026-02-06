@@ -95,6 +95,28 @@
   box-shadow: inset 0 0 0 2px #d93025;
 }
 
+/* Toggle Column Styles */
+.grid-cell.toggle-column {
+  text-align: center;
+}
+
+.toggle-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  font-size: 18px;
+  color: #5f6368;
+  transition: transform 0.1s ease;
+}
+
+.toggle-checkbox:hover {
+  transform: scale(1.2);
+  color: #1a73e8;
+}
+
 /* Placeholder Center */
 .table-placeholder {
   display: flex;
