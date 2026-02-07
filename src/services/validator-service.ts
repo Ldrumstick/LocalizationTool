@@ -102,7 +102,7 @@ export const validatorService = {
     });
 
     // 3. 检测重复 Key (组内)
-    groupKeyMaps.forEach((keyMap, groupId) => {
+    groupKeyMaps.forEach((keyMap, _) => {
       // 获取友好组名用于显示 (可选)
       // const groupName = groupId === UNGROUPED_ID ? '未分组' : (projectData.groups[groupId]?.name || '未知组');
 

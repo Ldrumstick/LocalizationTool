@@ -28,7 +28,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     })),
 
     undo: () => {
-        const { past, future } = get();
+        const { past } = get();
         if (past.length === 0) return;
 
         const entry = past[past.length - 1];
