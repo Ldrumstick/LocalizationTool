@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { produce } from 'immer';
-import { ProjectData, CSVFileData } from '../types';
+import { ProjectData, CSVFileData, FileGroup } from '../types';
 import { useHistoryStore } from './history-store';
 import { HistoryOperationType } from '../types/history';
 import { useEditorStore } from './editor-store';
+import { configService } from '../services/config-service';
 
 interface ProjectState extends ProjectData {
   // Actions
@@ -12,6 +13,16 @@ interface ProjectState extends ProjectData {
   setFiles: (files: Record<string, CSVFileData>) => void;
   updateFile: (fileId: string, updates: Partial<CSVFileData>) => void;
   toggleIgnoreFile: (fileId: string) => void;
+  
+  // Group Actions
+  setGroups: (groups: Record<string, FileGroup>) => void;
+  addGroup: (name: string) => void;
+  deleteGroup: (groupId: string) => void;
+  renameGroup: (groupId: string, newName: string) => void;
+  addFileToGroup: (groupId: string, fileId: string) => void;
+  removeFileFromGroup: (groupId: string, fileId: string) => void;
+  setIgnoredFileIds: (ids: string[]) => void;
+
   setLastOpenedFile: (fileId: string) => void;
   resetProject: () => void;
   
@@ -36,12 +47,22 @@ interface ProjectState extends ProjectData {
   updateFileTimestamp: (fileId: string, timestamp: number) => void;
 }
 
+const saveConfigToDisk = (state: ProjectState) => {
+  if (state.projectPath) {
+    configService.saveConfig(state.projectPath, {
+      ignoredFileIds: state.ignoredFileIds,
+      groups: state.groups
+    });
+  }
+};
+
 export const useProjectStore = create<ProjectState>()(
   persist(
     (set, get) => ({
       projectPath: '',
       files: {},
       ignoredFileIds: [],
+      groups: {},
       lastOpenedFileId: undefined,
 
       setProjectPath: (path) =>
@@ -54,7 +75,7 @@ export const useProjectStore = create<ProjectState>()(
       setFiles: (files) =>
         set(
           produce((state: ProjectState) => {
-            // Sync ignored status from persisted list
+            // Sync ignored status from state (which should be loaded from config before setFiles)
             Object.keys(files).forEach((fileId) => {
               if (state.ignoredFileIds.includes(fileId)) {
                 files[fileId].isIgnored = true;
@@ -63,6 +84,60 @@ export const useProjectStore = create<ProjectState>()(
             state.files = files;
           })
         ),
+
+      setGroups: (groups) => set(produce((state: ProjectState) => { state.groups = groups; })),
+      
+      setIgnoredFileIds: (ids) => set(produce((state: ProjectState) => { state.ignoredFileIds = ids; })),
+
+      addGroup: (name) => {
+        const id = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        set(produce((state: ProjectState) => {
+           state.groups[id] = { id, name, fileIds: [] };
+        }));
+        saveConfigToDisk(get());
+      },
+
+      deleteGroup: (groupId) => {
+        set(produce((state: ProjectState) => {
+           delete state.groups[groupId];
+           // Files within the group automatically become ungrouped (Global)
+        }));
+        saveConfigToDisk(get());
+      },
+      
+      renameGroup: (groupId, newName) => {
+        set(produce((state: ProjectState) => {
+           if (state.groups[groupId]) {
+             state.groups[groupId].name = newName;
+           }
+        }));
+        saveConfigToDisk(get());
+      },
+      
+      addFileToGroup: (groupId, fileId) => {
+        set(produce((state: ProjectState) => {
+           // Remove from other groups first (Constraint: 1 file -> 1 group)
+           Object.values(state.groups).forEach(g => {
+             const idx = g.fileIds.indexOf(fileId);
+             if (idx > -1) g.fileIds.splice(idx, 1);
+           });
+           
+           if (state.groups[groupId]) {
+             state.groups[groupId].fileIds.push(fileId);
+           }
+        }));
+        saveConfigToDisk(get());
+      },
+      
+      removeFileFromGroup: (groupId, fileId) => {
+        set(produce((state: ProjectState) => {
+           if (state.groups[groupId]) {
+             const idx = state.groups[groupId].fileIds.indexOf(fileId);
+             if (idx > -1) state.groups[groupId].fileIds.splice(idx, 1);
+           }
+        }));
+        saveConfigToDisk(get());
+      },
 
       updateFile: (fileId, updates) =>
         set(
@@ -73,7 +148,6 @@ export const useProjectStore = create<ProjectState>()(
           })
         ),
 
-      // 新增：全量更新 Key Index
       setKeyIndex: (index) => 
         set(
           produce((state: ProjectState) => {
@@ -81,7 +155,6 @@ export const useProjectStore = create<ProjectState>()(
           })
         ),
 
-      // 新增：更新单个文件的 Key Index (用于编辑时)
       updateKeyIndex: (fileId, keys) =>
         set(
           produce((state: ProjectState) => {
@@ -241,7 +314,7 @@ export const useProjectStore = create<ProjectState>()(
         }));
       },
 
-      toggleIgnoreFile: (fileId) =>
+      toggleIgnoreFile: (fileId) => {
         set(
           produce((state: ProjectState) => {
             const index = state.ignoredFileIds.indexOf(fileId);
@@ -253,7 +326,9 @@ export const useProjectStore = create<ProjectState>()(
               if (state.files[fileId]) state.files[fileId].isIgnored = true;
             }
           })
-        ),
+        );
+        saveConfigToDisk(get());
+      },
 
       setLastOpenedFile: (fileId) =>
         set(
@@ -267,6 +342,7 @@ export const useProjectStore = create<ProjectState>()(
           projectPath: '',
           files: {},
           ignoredFileIds: [],
+          groups: {},
           lastOpenedFileId: undefined,
         }),
 
@@ -617,8 +693,8 @@ export const useProjectStore = create<ProjectState>()(
       name: 'localization-project-storage',
       partialize: (state) => ({
         projectPath: state.projectPath,
-        ignoredFileIds: state.ignoredFileIds,
         lastOpenedFileId: state.lastOpenedFileId,
+        // ignoredFileIds & groups are managed by config-service
       }),
     }
   )

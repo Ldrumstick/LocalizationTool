@@ -23,12 +23,23 @@ export interface CSVFileData {
 }
 
 /**
+ * 文件分组接口
+ */
+export interface FileGroup {
+  id: string;
+  name: string;
+  color?: string;
+  fileIds: string[];
+}
+
+/**
  * 项目全局数据接口
  */
 export interface ProjectData {
   projectPath: string;
   files: Record<string, CSVFileData>; // 使用对象结构方便查找，Key 为文件 ID
   ignoredFileIds: string[]; // 被忽略的文件 ID 列表
+  groups: Record<string, FileGroup>; // 文件分组
   lastOpenedFileId?: string;
   keyIndex?: Record<string, string[]>; // 全局 Key 索引
 }

@@ -237,6 +237,8 @@ ipcMain.handle('project:build-index', async (_event, projectPath: string) => {
   }
 });
 
+const CONFIG_FILENAME = '.localization.config.json';
+
 // IPC 处理：保存文件
 ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
   try {
@@ -262,6 +264,34 @@ ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
       success: false, 
       error: error.message 
     };
+  }
+});
+
+// IPC 处理：读取配置文件
+ipcMain.handle('config:read', async (_event, projectPath: string) => {
+  try {
+    const configPath = path.join(projectPath, CONFIG_FILENAME);
+    const content = await fs.readFile(configPath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error: any) {
+    // 如果文件不存在，返回 null，前端会处理默认值
+    if (error.code === 'ENOENT') {
+      return null;
+    }
+    console.error(`读取配置文件失败: ${projectPath}`, error);
+    throw error;
+  }
+});
+
+// IPC 处理：保存配置文件
+ipcMain.handle('config:save', async (_event, { projectPath, config }) => {
+  try {
+    const configPath = path.join(projectPath, CONFIG_FILENAME);
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    return { success: true };
+  } catch (error: any) {
+    console.error(`保存配置文件失败: ${projectPath}`, error);
+    throw error;
   }
 });
 

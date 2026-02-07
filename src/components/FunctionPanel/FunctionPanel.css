@@ -2,114 +2,153 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #fcfcfc;
+  background-color: #f8f9fa;
+  border-left: 1px solid #e0e0e0;
 }
 
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid #e0e0e0;
+  background-color: #fff;
 }
 
 .panel-tabs button {
   flex: 1;
-  padding: 12px;
+  padding: 10px;
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   color: #666;
   border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.panel-tabs button:hover {
+  background-color: #f1f3f4;
+  color: #333;
 }
 
 .panel-tabs button.active {
   color: #007bff;
   border-bottom-color: #007bff;
   font-weight: 600;
+  background-color: white;
+}
+
+.tab-badge {
+  background-color: #d93025;
+  color: white;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 .panel-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 16px;
+  overflow: hidden; /* Stop main panel text from scrolling */
+  padding: 0;
+  display: flex;      /* Ensure children take height */
+  flex-direction: column;
 }
 
-.input-group {
-  margin-bottom: 16px;
+.search-tab {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    padding: 0;
 }
 
-.input-group label {
-  display: block;
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 6px;
-}
-
-.input-group input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.options-group {
+/* Search Input Container & Embedded Options */
+.search-container {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
-}
-
-.options-group label {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #555;
-  cursor: pointer;
-}
-
-.options-group input {
-  margin-right: 8px;
-}
-
-.action-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.action-buttons button {
-  padding: 8px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.action-buttons button:hover:not(:disabled) {
+  padding: 12px 12px 8px 12px; /* Top/Side padding + bottom gap */
+  flex-shrink: 0; /* Keep fixed */
+  border-bottom: 1px solid #f0f0f0; /* Optional separator */
   background-color: #f8f9fa;
 }
 
-.action-buttons .primary-btn {
-  background-color: #007bff;
-  color: white;
-  border-color: #0069d9;
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px;
+  transition: border-color 0.2s;
 }
 
-.action-buttons .primary-btn:hover {
-  background-color: #0069d9;
+.input-wrapper:focus-within {
+  border-color: #007bff;
+  box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.2);
 }
 
+.input-wrapper input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 13px;
+  outline: none;
+  min-width: 0; /* allows input to shrink */
+  color: #333;
+}
+
+.input-options {
+  display: flex;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+.option-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 3px;
+  color: #666;
+  font-size: 14px;
+  user-select: none;
+  transition: all 0.1s;
+}
+
+.option-btn:hover {
+  background-color: #e8e8e8;
+  color: #333;
+}
+
+.option-btn.active {
+  background-color: #cce5ff;
+  color: #0056b3;
+}
+
+.option-icon {
+  font-style: normal;
+  font-family: Consolas, Monaco, "Courier New", monospace;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* Results List - Grouping */
 .search-results {
-  border-top: 1px solid #eee;
-  padding-top: 16px;
+  flex: 1;
+  overflow-y: auto; /* Scroll here */
+  padding: 8px 12px 12px 12px; /* Content padding */
 }
 
 .results-info {
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 10px;
+  font-size: 11px;
+  color: #777;
+  margin-bottom: 8px;
+  padding: 0 4px;
 }
 
 .results-list {
@@ -118,62 +157,164 @@
   margin: 0;
 }
 
-.results-list li {
-  padding: 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
+.file-group {
+    margin-bottom: 5px;
 }
 
-.results-list li:hover {
-  background-color: #f0f7ff;
+.file-group-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #444;
+    background-color: transparent;
+    border-radius: 3px;
 }
 
-.results-list li.active {
-  background-color: #e8f0fe;
-  border-color: #007bff;
+.file-group-header:hover {
+    background-color: #e6e6e6;
 }
 
-.res-file {
-  font-size: 12px;
-  font-weight: 600;
-  color: #333;
+.file-group-icon {
+    margin-right: 6px;
+    transition: transform 0.2s;
+    font-size: 10px;
+    width: 12px;
+    text-align: center;
+}
+.file-group-icon.collapsed {
+    transform: rotate(-90deg);
 }
 
-.res-pos {
-  font-size: 11px;
-  color: #999;
-  margin-left: 8px;
+.file-group-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.res-context {
-  font-size: 12px;
-  color: #666;
-  margin-top: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.file-match-count {
+    background-color: #e0e0e0;
+    color: #666;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 10px;
+    margin-left: 8px;
 }
 
-.error-info {
-  color: #d93025;
-  font-weight: 600;
+.file-matches {
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
+.match-item {
+    position: relative;
+    padding: 6px 8px 6px 28px; /* Indent matches, increase padding */
+    cursor: pointer;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    border-left: 2px solid transparent; /* Selection indicator */
+    border-bottom: 1px solid #f0f0f0; /* Separator */
+    transition: background-color 0.1s;
+}
+
+/* Zebra striping for better readability */
+.match-item:nth-child(even) {
+    background-color: #fafafa;
+}
+
+.match-item:hover {
+    background-color: #e8f0fe; /* More distinct hover */
+    color: #333;
+}
+.match-item:hover .match-actions {
+    display: flex;
+}
+
+.match-item.active {
+    background-color: #d2e3fc; /* Darker than hover */
+    border-left-color: #007bff;
+    color: #000;
+}
+
+.match-context {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    line-height: 1.4;
+}
+
+/* Diff Styling */
+.diff-del {
+    background-color: #ffcccc;
+    text-decoration: line-through;
+    color: #990000;
+}
+.diff-ins {
+    background-color: #ccffcc;
+    color: #006600;
+}
+.highlight-match-text {
+    background-color: #fffacd; /* Light yellow for simple match text */
+    color: #333;
+    font-weight: bold;
+    border: 1px solid #e0e0e0;
+    border-radius: 2px;
+}
+
+.dim-text {
+    color: #666;
+}
+
+/* Hover Actions for Match Item */
+.match-actions {
+    display: none; /* Hidden by default */
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.action-icon-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 12px;
+    color: #666;
+    border-radius: 2px;
+}
+.action-icon-btn:hover {
+    background-color: #eee;
+    color: #333;
+}
+
+
+/* Validation Style (Reused) */
+.validation-tab {
+    padding: 12px;
+    height: 100%;
+    overflow-y: auto;
+}
 .error-item {
   border-left: 3px solid #d93025 !important;
-}
-
-.error-header {
-  display: flex;
-  justify-content: space-between;
+  padding: 8px;
   margin-bottom: 4px;
-}
-
-.error-message {
-  font-size: 12px;
-  color: #d93025;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .type-duplicate_key .error-message {
@@ -183,9 +324,17 @@
   border-left-color: #e37400 !important;
 }
 
+.error-message {
+  font-size: 11px;
+  color: #d93025;
+  margin-top: 2px;
+}
+
 .placeholder-text {
   color: #999;
   font-size: 13px;
   text-align: center;
   margin-top: 40px;
+  padding: 0 20px;
+  line-height: 1.5;
 }

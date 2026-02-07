@@ -10,8 +10,16 @@ interface EditorState extends UIState {
   editingLocation: 'cell' | 'editor-bar' | 'header'; // 编辑位置
   tempValue: string;
   originalValue: string;
-
-  // Toggle 列状态: fileId -> Set<columnIndex>
+  
+  // Search State
+  searchQuery: string;
+  replaceQuery: string;
+  isReplaceMode: boolean;
+  isRegExp: boolean;
+  isCaseSensitive: boolean;
+  isGlobalSearch: boolean;
+  searchResults: SearchResult[];
+  currentResultIndex: number;
   toggleColumns: Record<string, number[]>;
 
   // Column Widths: fileId -> { colIndex: width }
@@ -40,6 +48,7 @@ interface EditorState extends UIState {
   setReplaceQuery: (query: string) => void;
   toggleReplaceMode: () => void;
   toggleRegExp: () => void;
+  toggleCaseSensitive: () => void;
   toggleGlobalSearch: () => void;
   setSearchResults: (results: SearchResult[]) => void;
   setCurrentResultIndex: (index: number) => void;
@@ -77,6 +86,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   replaceQuery: '',
   isReplaceMode: false,
   isRegExp: false,
+  isCaseSensitive: false,
   isGlobalSearch: false,
   searchResults: [],
   currentResultIndex: -1,
@@ -164,6 +174,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setReplaceQuery: (query) => set(produce((state: EditorState) => { state.replaceQuery = query; })),
   toggleReplaceMode: () => set(produce((state: EditorState) => { state.isReplaceMode = !state.isReplaceMode; })),
   toggleRegExp: () => set(produce((state: EditorState) => { state.isRegExp = !state.isRegExp; })),
+  toggleCaseSensitive: () => set(produce((state: EditorState) => { state.isCaseSensitive = !state.isCaseSensitive; })),
   toggleGlobalSearch: () => set(produce((state: EditorState) => { state.isGlobalSearch = !state.isGlobalSearch; })),
 
   setSearchResults: (results) => set(produce((state: EditorState) => {

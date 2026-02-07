@@ -2,36 +2,58 @@ import { ProjectData, ValidationError } from '../types';
 
 /**
  * 验证服务
- * 提供全项目 Key 值格式校验与重复性检测
- */
-
-/**
- * 验证服务 (Real-time Validation)
- * 基于 Backend Indexing + Frontend Dirty Data 进行全项目实时校验
+ * 提供全项目 Key 值格式校验与重复性检测 (支持分组作用域)
  */
 export const validatorService = {
   /**
-   * 执行全项目验证
-   */
+    * 执行全项目验证
+    */
   validateProject(projectData: ProjectData): ValidationError[] {
     const errors: ValidationError[] = [];
-    const keyMap = new Map<string, { fileId: string; rowIndex: number }[]>();
     const KEY_PATTERN = /^[A-Z0-9_]+$/;
 
-    // 获取所有文件的 ID 集合 (包括已加载和索引中的)
+    // 1. 构建文件到组的映射 (FileID -> GroupID)
+    const fileGroupMap = new Map<string, string>();
+    const UNGROUPED_ID = '__ungrouped__';
+
+    // 预先填充所有文件默认为 Ungrouped
     const allFileIds = new Set<string>();
     if (projectData.keyIndex) {
       Object.keys(projectData.keyIndex).forEach(id => allFileIds.add(id));
     }
     Object.keys(projectData.files).forEach(id => allFileIds.add(id));
 
-    // 遍历每个文件获取 Keys
+    allFileIds.forEach(id => fileGroupMap.set(id, UNGROUPED_ID));
+
+    // 根据 Group 定义更新映射
+    if (projectData.groups) {
+      Object.values(projectData.groups).forEach(group => {
+        group.fileIds.forEach(fileId => {
+          if (allFileIds.has(fileId)) {
+            fileGroupMap.set(fileId, group.id);
+          }
+        });
+      });
+    }
+
+    // 2. 按组收集 Keys
+    // Map<GroupId, Map<Key, Location[]>>
+    const groupKeyMaps = new Map<string, Map<string, { fileId: string; rowIndex: number }[]>>();
+
     allFileIds.forEach(fileId => {
        // 如果被忽略，跳过
        const isIgnoredInStore = projectData.ignoredFileIds && projectData.ignoredFileIds.includes(fileId);
        const isIgnoredInFile = projectData.files[fileId]?.isIgnored;
        
        if (isIgnoredInStore || isIgnoredInFile) return;
+
+       const groupId = fileGroupMap.get(fileId) || UNGROUPED_ID;
+       
+       // 初始化组 Map
+       if (!groupKeyMaps.has(groupId)) {
+         groupKeyMaps.set(groupId, new Map());
+       }
+       const currentGroupMap = groupKeyMaps.get(groupId)!;
 
        let keys: string[] = [];
        const loadedFile = projectData.files[fileId];
@@ -46,10 +68,9 @@ export const validatorService = {
        keys.forEach((key, rowIndex) => {
           const colIndex = 0;
 
-          // 检测空值
+          // 检测空值 (空值校验通常是文件级别的，不需要关心组，但为了统一流程放在这里)
           if (!key || key.trim() === '') {
-            if (loadedFile) { // 仅对已加载文件报详细错误，避免索引脏数据干扰体验? 
-              // 暂时策略：都报错，因为空 Key 是严重错误
+            if (loadedFile) { 
                errors.push({
                 fileId,
                 rowIndex,
@@ -72,27 +93,32 @@ export const validatorService = {
             });
           }
 
-          // 记录查重
-          if (!keyMap.has(key)) {
-            keyMap.set(key, []);
+          // 记录用于查重
+          if (!currentGroupMap.has(key)) {
+            currentGroupMap.set(key, []);
           }
-          keyMap.get(key)!.push({ fileId, rowIndex });
+          currentGroupMap.get(key)!.push({ fileId, rowIndex });
        });
     });
 
-    // 检测重复 Key
-    keyMap.forEach((locations, key) => {
-      if (locations.length > 1) {
-        locations.forEach((loc) => {
-          errors.push({
-            fileId: loc.fileId,
-            rowIndex: loc.rowIndex,
-            colIndex: 0,
-            message: `重复 Key: "${key}"`,
-            type: 'duplicate_key'
+    // 3. 检测重复 Key (组内)
+    groupKeyMaps.forEach((keyMap, groupId) => {
+      // 获取友好组名用于显示 (可选)
+      // const groupName = groupId === UNGROUPED_ID ? '未分组' : (projectData.groups[groupId]?.name || '未知组');
+
+      keyMap.forEach((locations, key) => {
+        if (locations.length > 1) {
+          locations.forEach((loc) => {
+            errors.push({
+              fileId: loc.fileId,
+              rowIndex: loc.rowIndex,
+              colIndex: 0,
+              message: `重复 Key: "${key}"`, // 暂时不显示组名，保持消息简洁，因为用户能看到文件在同一个组
+              type: 'duplicate_key'
+            });
           });
-        });
-      }
+        }
+      });
     });
 
     return errors;

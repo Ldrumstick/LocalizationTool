@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // 索引
     buildProjectIndex: (projectPath: string) => ipcRenderer.invoke('project:build-index', projectPath),
+
+    // 配置管理
+    readConfig: (projectPath: string) => ipcRenderer.invoke('config:read', projectPath),
+    saveConfig: (params: { projectPath: string; config: any }) => ipcRenderer.invoke('config:save', params),
 });
 
 // 类型定义（供 TypeScript 使用）
@@ -48,6 +52,8 @@ export interface ElectronAPI {
     onSaveTrigger: (callback: () => void) => void;
     onOpenProjectTrigger: (callback: () => void) => void;
     removeMenuListeners: () => void;
+    readConfig: (projectPath: string) => Promise<any>;
+    saveConfig: (params: { projectPath: string; config: any }) => Promise<{ success: boolean }>;
 }
 
 declare global {

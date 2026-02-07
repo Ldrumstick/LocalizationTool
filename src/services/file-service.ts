@@ -1,6 +1,7 @@
 import { CSVFileData } from '../types';
 import { useProjectStore } from '../stores/project-store';
 import Papa from 'papaparse';
+import { configService } from './config-service';
 
 /**
  * 文件管理服务
@@ -33,6 +34,13 @@ export const fileService = {
         });
 
         projectStore.setProjectPath(projectPath);
+        
+        // 1. Load Config first (Groups & Ignored Files)
+        const config = await configService.loadConfig(projectPath);
+        projectStore.setIgnoredFileIds(config.ignoredFileIds);
+        projectStore.setGroups(config.groups);
+
+        // 2. Set Files (will use ignoredFileIds to set isIgnored flag)
         projectStore.setFiles(filesMap);
 
         // 异步构建 Key Index
