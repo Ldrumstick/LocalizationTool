@@ -1,10 +1,11 @@
-import chokidar from 'chokidar';
+import type * as Chokidar from 'chokidar';
+const chokidar = eval('require')('chokidar') as typeof Chokidar;
 import path from 'path';
 import fs from 'fs/promises';
 import { BrowserWindow } from 'electron';
 import { readFileAndDecode } from './file-utils';
 
-let watcher: chokidar.FSWatcher | null = null;
+let watcher: Chokidar.FSWatcher | null = null;
 let lastSaveMap: Map<string, number> = new Map();
 
 //Debounce timer map
@@ -34,7 +35,7 @@ export function setupWatcher(mainWindow: BrowserWindow, projectPath: string) {
         depth: 0 // Only watch root directory 
     });
 
-    watcher.on('change', (filePath) => {
+    watcher.on('change', (filePath: string) => {
         if (!filePath.toLowerCase().endsWith('.csv')) return;
 
         // Check if self-triggered
