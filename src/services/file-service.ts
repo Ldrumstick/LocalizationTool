@@ -91,7 +91,7 @@ export const fileService = {
       
       // 生成 CSV 字符串
       const csvContent = Papa.unparse(data, {
-        quotes: true, // 确保特殊字符被引用
+        quotes: false, // 仅在必要时添加引号 (Smart Quoting)
         quoteChar: '"',
       });
 
