@@ -18,6 +18,9 @@ const FileMonitor: React.FC = () => {
             const file = currentFiles[fileId];
 
             if (!file) return;
+            if (file.lastModified && Math.abs(file.lastModified - lastModified) < 2) {
+               return;
+            }
 
             // If file is dirty, show conflict modal
             if (file.isDirty) {

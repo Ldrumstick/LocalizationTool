@@ -19,6 +19,20 @@ const FileList: React.FC = () => {
   } | null>(null);
 
   const handleFileClick = async (fileId: string) => {
+    const editorState = useEditorStore.getState();
+    if (editorState.isEditing && editorState.selectedFileId && editorState.selectedFileId !== fileId) {
+      if (editorState.editingLocation !== 'header') {
+        const targetCell = editorState.editingCell ?? editorState.selectedCell;
+        if (targetCell) {
+          useProjectStore.getState().updateCell(
+            editorState.selectedFileId,
+            targetCell.row,
+            targetCell.col,
+            editorState.tempValue
+          );
+        }
+      }
+    }
     setSelectedFile(fileId);
     
     const file = files[fileId];
