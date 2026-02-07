@@ -1,6 +1,6 @@
 {
   "name": "localization-tool",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "游戏本地化编辑工具 - 高性能 CSV 编辑器",
   "main": "dist-electron/main.js",
   "author": "开发团队",
