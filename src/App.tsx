@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import FileList from './components/FileList/FileList';
 import Editor from './components/Editor/Editor';
 import FunctionPanel from './components/FunctionPanel/FunctionPanel';
+import FileMonitor from './components/FileMonitor/FileMonitor';
 import { useAutoSave } from './hooks/use-auto-save';
 import { fileService } from './services/file-service';
 import './App.css';
@@ -54,6 +55,7 @@ function App() {
                     <FunctionPanel />
                 </div>
             </div>
+            <FileMonitor />
         </div>
     );
 }

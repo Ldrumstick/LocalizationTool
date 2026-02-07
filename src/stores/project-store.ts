@@ -23,6 +23,10 @@ interface ProjectState extends ProjectData {
   insertColumns: (fileId: string, index: number, count: number) => void;
   deleteColumns: (fileId: string, indices: number[]) => void;
   duplicateRows: (fileId: string, indices: number[]) => void;
+  
+  // File Monitoring Actions
+  reloadFile: (fileId: string, fileData: any, timestamp: number) => void;
+  updateFileTimestamp: (fileId: string, timestamp: number) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -257,6 +261,32 @@ export const useProjectStore = create<ProjectState>()(
             });
             
             file.isDirty = true;
+            file.isDirty = true;
+          })
+        ),
+
+      reloadFile: (fileId, fileData, timestamp) =>
+        set(
+          produce((state: ProjectState) => {
+            if (state.files[fileId]) {
+              state.files[fileId] = {
+                ...state.files[fileId],
+                headers: fileData.headers,
+                rows: fileData.rows,
+                // encoding: fileData.encoding, // If we want to update encoding
+                isDirty: false,
+                lastModified: timestamp
+              };
+            }
+          })
+        ),
+
+      updateFileTimestamp: (fileId, timestamp) =>
+        set(
+          produce((state: ProjectState) => {
+            if (state.files[fileId]) {
+              state.files[fileId].lastModified = timestamp;
+            }
           })
         ),
     }),
