@@ -28,7 +28,7 @@ const RichtextEditor: React.FC = () => {
   const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
 
   const projectFiles = useProjectStore((state) => state.files);
-  const updateFile = useProjectStore((state) => state.updateFile);
+
 
   // 计算当前单元格的原始值
   const currentCellValue = React.useMemo(() => {
@@ -101,46 +101,22 @@ const RichtextEditor: React.FC = () => {
             key: 'Alt-Enter',
             run: () => {
               if (isEditing && selectedCell && selectedFileId) {
-                // 保存编辑内容到 ProjectStore
-                const file = projectFiles[selectedFileId];
-                if (file) {
-                  const newRows = [...file.rows];
-                  const newCells = [...newRows[selectedCell.row].cells];
+                // 使用 updateCell 保持一致性并记录历史
+                const { updateCell } = useProjectStore.getState();
+                const contentToSave = useEditorStore.getState().tempValue;
+                updateCell(selectedFileId, selectedCell.row, selectedCell.col, contentToSave);
 
-                  // 使用最新的 tempValue 进行保存
-                  // 注意：这里我们应该确保 tempValue 是最新的。
-                  // 由于 updateTempValue 是同步的，且我们使用 zustand，这里可以直接取最新的
-                  // 但为了保险，我们可以直接用编辑器当前的内容
-                  // const currentContent = view.state.doc.toString(); // 如果能获取到view实例的话
-                  // 在这里我们使用闭包中的 tempValue，或者最好是从 store 中获取最新的
-                  // 为避免闭包过期问题，最好信任 tempValue 或者重新获取 state
-                  // 这里的 run 函数闭包可能会捕获旧的 tempValue 吗？CodeMirror 的 keymap 可能会。
-                  // 安全起见，做一次 store 读取或者利用 updateListener 已更新的 tempValue
+                // 退出编辑模式
+                exitEditMode(true);
 
-                  // 由于 tempValue 是从 useEditorStore hook 获取的，组件重新渲染时会更新，
-                  // keymap 配置是在 useEffect 依赖为空数组时创建的，所以这里的闭包 
-                  // 确实可能捕获初始的 tempValue (空字符串)！这是一个常见陷阱。
-
-                  // 修复方案：这里的逻辑应该放到外部引用其实例，或者依赖项更新重建扩展。
-                  // 但频繁重建编辑器不好。
-                  // 更好的方式：利用 EditorView.domEventHandlers 或者 dispatch 事件。
-                  // 或者，直接操作 store 的 getState()
-
-                  const currentStoreState = useEditorStore.getState();
-                  const contentToSave = currentStoreState.tempValue;
-
-                  newCells[selectedCell.col] = contentToSave;
-                  newRows[selectedCell.row] = { ...newRows[selectedCell.row], cells: newCells };
-                  updateFile(selectedFileId, { rows: newRows, isDirty: true });
-
-                  // 退出编辑模式
-                  exitEditMode(true);
-
-                  // 跳转到下一行
-                  const maxRow = file.rows.length;
-                  if (selectedCell.row + 1 < maxRow) {
-                    setSelectedCell(selectedCell.row + 1, selectedCell.col);
-                  }
+                // 跳转到下一行
+                // 需要重新获取 file，因为闭包中的 file 可能已过时，或者直接从 store 获取
+                const currentFile = useProjectStore.getState().files[selectedFileId];
+                if (currentFile) {
+                    const maxRow = currentFile.rows.length;
+                    if (selectedCell.row + 1 < maxRow) {
+                        setSelectedCell(selectedCell.row + 1, selectedCell.col);
+                    }
                 }
                 return true;
               }

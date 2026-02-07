@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useHistoryStore } from './stores/history-store';
 import FileList from './components/FileList/FileList';
 import Editor from './components/Editor/Editor';
 import FunctionPanel from './components/FunctionPanel/FunctionPanel';
@@ -35,6 +36,35 @@ function App() {
         return () => {
             window.electronAPI.removeMenuListeners();
         };
+    }, []);
+
+    // 全局快捷键监听 (Undo/Redo)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // 如果是在输入框或编辑器中，交由原生/组件处理
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
+            // Undo: Ctrl+Z / Cmd+Z
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                useHistoryStore.getState().undo();
+            }
+
+            // Redo: Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y
+            if (
+                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && e.shiftKey) ||
+                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')
+            ) {
+                e.preventDefault();
+                useHistoryStore.getState().redo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     return (

@@ -144,7 +144,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const toggleColumns = useEditorStore((state) => state.toggleColumns);
     const initToggleColumns = useEditorStore((state) => state.initToggleColumns);
     const setToggleColumn = useEditorStore((state) => state.setToggleColumn);
-    const updateFile = useProjectStore((state) => state.updateFile);
+
 
     // 当前文件的 Toggle 列索引
     const currentToggleCols = useMemo(() => {
@@ -290,53 +290,37 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         };
 
         const performFill = (startRow: number, endRow: number, startCol: number, endCol: number, targetRow: number, mode: 'auto' | 'copy') => {
-            const file = useProjectStore.getState().files[selectedFileId!];
+            const projectState = useProjectStore.getState();
+            const file = projectState.files[selectedFileId!];
             if (!file) return;
 
-            const newRows = [...file.rows];
-            let isDirty = false;
+            // Expand rows if needed
+            if (targetRow >= file.rows.length) {
+                projectState.insertRows(selectedFileId!, file.rows.length, targetRow - file.rows.length + 1);
+            }
 
+            // Note: file variable is stale here regarding rows length, but source data [startRow, endRow] is valid.
+            
             const fillCount = targetRow - endRow;
+            const updates: { row: number; col: number; value: string }[] = [];
 
-            // Expand rows
-            if (targetRow >= newRows.length) {
-                for (let i = newRows.length; i <= targetRow; i++) {
-                    newRows.push({
-                        rowIndex: i,
-                        cells: Array(headers.length).fill('')
-                    });
-                }
-            }
-
-            // 1. Clone target rows
-            for (let i = 0; i < fillCount; i++) {
-                const rIdx = endRow + 1 + i;
-                if (newRows[rIdx]) {
-                    newRows[rIdx] = { ...newRows[rIdx], cells: [...newRows[rIdx].cells] };
-                }
-            }
-
-            // 2. Apply Fill
             for (let c = startCol; c <= endCol; c++) {
                 const sourceValues: string[] = [];
                 for (let r = startRow; r <= endRow; r++) {
-                    sourceValues.push(newRows[r]?.cells[c] || '');
+                    sourceValues.push(file.rows[r]?.cells[c] || '');
                 }
 
                 const generated = generateFillData(sourceValues, fillCount, mode);
 
                 for (let i = 0; i < fillCount; i++) {
                     const rIdx = endRow + 1 + i;
-                    if (newRows[rIdx]) {
-                        newRows[rIdx].cells[c] = generated[i];
-                        isDirty = true;
-                    }
+                    updates.push({ row: rIdx, col: c, value: generated[i] });
                 }
             }
 
-            if (isDirty) {
-                useProjectStore.getState().updateFile(selectedFileId!, { rows: newRows, isDirty: true });
-
+            if (updates.length > 0) {
+                projectState.batchUpdateCells(selectedFileId!, updates, mode === 'copy' ? '复制填充' : '序列填充');
+                
                 // Update selection to cover filled area
                 setSelectedRange(
                     { row: startRow, col: startCol },
@@ -502,46 +486,26 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 return; // No selection to paste into
             }
 
-            const newRows = [...file.rows];
-            let isDirty = false;
+            // Expand if needed
+            const totalRowsNeeded = startRow + rowsData.length;
+            if (totalRowsNeeded > file.rows.length) {
+                projectState.insertRows(selectedFileId, file.rows.length, totalRowsNeeded - file.rows.length);
+            }
+
+            const updates: { row: number; col: number; value: string }[] = [];
 
             rowsData.forEach((rowData, rIdx) => {
                 const targetRowIdx = startRow + rIdx;
-
-                // Handle adding new rows if paste exceeds current row count
-                // BUT: projectStore has insertRows, but we need to do it in bulk.
-                // For now, let's limit to existing rows or simple push?
-                // Simple push might break 'rowIndex' consistency if not careful.
-                // Let's create new row objects if needed.
-                if (targetRowIdx >= newRows.length) {
-                    // We need to add rows. 
-                    // Construct new row
-                    const newRow: CSVRow = {
-                        rowIndex: targetRowIdx,
-                        cells: Array(headers.length).fill('')
-                    };
-                    newRows.push(newRow);
-                }
-
-                const targetRow = { ...newRows[targetRowIdx] };
-                const newCells = [...targetRow.cells];
-
                 rowData.forEach((cellData, cIdx) => {
                     const targetColIdx = startCol + cIdx;
                     if (targetColIdx < headers.length) {
-                        if (newCells[targetColIdx] !== cellData) {
-                            newCells[targetColIdx] = cellData;
-                            isDirty = true;
-                        }
+                         updates.push({ row: targetRowIdx, col: targetColIdx, value: cellData });
                     }
                 });
-
-                targetRow.cells = newCells;
-                newRows[targetRowIdx] = targetRow;
             });
 
-            if (isDirty) {
-                projectState.updateFile(selectedFileId, { rows: newRows, isDirty: true });
+            if (updates.length > 0) {
+                projectState.batchUpdateCells(selectedFileId, updates, '粘贴');
             }
 
         } catch (err) {
@@ -579,7 +543,9 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             // F2 进入编辑模式（追加）
             if (e.key === 'F2') {
                 e.preventDefault();
-                enterEditMode('append');
+                const file = useProjectStore.getState().files[selectedFileId];
+                const content = file?.rows[selectedCell.row]?.cells[selectedCell.col] || '';
+                enterEditMode('append', content, content);
                 setEditingLocation('cell');
                 return;
             }
@@ -616,7 +582,9 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 e.key !== ' ' // 暂时排除空格，避免误触
             ) {
                 e.preventDefault();
-                enterEditMode('replace', e.key);
+                const file = useProjectStore.getState().files[selectedFileId];
+                const content = file?.rows[selectedCell.row]?.cells[selectedCell.col] || '';
+                enterEditMode('replace', content, e.key);
                 setEditingLocation('cell');
                 return;
             }
@@ -779,15 +747,8 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                     const projectState = useProjectStore.getState();
 
                     // 保存当前编辑的内容
-                    if (state.selectedFileId && state.tempValue !== undefined) {
-                        const file = projectState.files[state.selectedFileId];
-                        if (file && editingCell) {
-                            const newRows = [...file.rows];
-                            const newCells = [...newRows[editingCell.row].cells];
-                            newCells[editingCell.col] = state.tempValue;
-                            newRows[editingCell.row] = { ...newRows[editingCell.row], cells: newCells };
-                            projectState.updateFile(state.selectedFileId, { rows: newRows, isDirty: true });
-                        }
+                    if (state.selectedFileId && state.tempValue !== undefined && editingCell) {
+                        projectState.updateCell(state.selectedFileId, editingCell.row, editingCell.col, state.tempValue);
                     }
 
                     // 退出编辑模式
@@ -889,14 +850,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             }
 
             const newValue = toggleBooleanValue(content, preferredFormat);
-            const file = useProjectStore.getState().files[selectedFileId];
-            if (!file) return;
-
-            const newRows = [...file.rows];
-            const newCells = [...newRows[rowIndex].cells];
-            newCells[columnIndex] = newValue;
-            newRows[rowIndex] = { ...newRows[rowIndex], cells: newCells };
-            updateFile(selectedFileId, { rows: newRows, isDirty: true });
+            const projectState = useProjectStore.getState();
+            
+            // Use updateCell for history support
+            projectState.updateCell(selectedFileId, rowIndex, columnIndex, newValue);
         };
 
         // 渲染复选框或普通内容
@@ -905,7 +862,11 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 if (editingLocation === 'cell') {
                     return <InlineEditor row={rowIndex} col={columnIndex} value={content} onNavigate={navigateCell} />;
                 } else {
-                    return <div className="cell-content-preview" style={{ whiteSpace: 'pre-wrap' }}>{tempValue}</div>;
+                return (
+                    <div className="cell-content-preview" style={{ whiteSpace: 'pre-wrap' }}>
+                        {useEditorStore.getState().tempValue}
+                    </div>
+                );
                 }
             }
 
@@ -942,7 +903,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 {isBottomRight && <div className="fill-handle" onMouseDown={(e) => handleFillMouseDown(e, rowIndex, columnIndex)} />}
             </div>
         );
-    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentResultIndex, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, tempValue, editingLocation, fillState, currentToggleCols, updateFile]);
+    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentResultIndex, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, fillState, currentToggleCols]);
 
     const handleRowContextMenu = (rowIndex: number, e: React.MouseEvent) => {
         e.preventDefault();

@@ -30,7 +30,7 @@ interface EditorState extends UIState {
   initColumnWidths: (fileId: string) => void;
 
   // 编辑 Actions
-  enterEditMode: (mode: 'replace' | 'append', initialValue?: string) => void;
+  enterEditMode: (mode: 'replace' | 'append', originalValue: string, initialInput?: string) => void;
   exitEditMode: (confirm: boolean) => void;
   updateTempValue: (value: string) => void;
   setEditingLocation: (location: 'cell' | 'editor-bar' | 'header') => void;
@@ -217,7 +217,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   },
 
   // 编辑 Actions
-  enterEditMode: (mode, initialValue) => set(produce((state: EditorState) => {
+  enterEditMode: (mode, originalValue, initialInput) => set(produce((state: EditorState) => {
     const { selectedCell, selectedFileId } = state;
     if (!selectedCell || !selectedFileId) {
       return;
@@ -226,20 +226,15 @@ export const useEditorStore = create<EditorState>((set) => ({
     state.isEditing = true;
     state.editingCell = { row: selectedCell.row, col: selectedCell.col };
     state.editMode = mode;
+    state.originalValue = originalValue;
 
-    // 无论是 replace 还是 append，如果有 initialValue，都应该设置 tempValue
-    if (initialValue !== undefined) {
-      state.tempValue = initialValue;
+    if (initialInput !== undefined) {
+      state.tempValue = initialInput;
     } else if (mode === 'replace') {
-      // replace 模式如果不传 initialValue，默认为空
       state.tempValue = '';
     } else {
-      // append 模式如果不传，保持 undefined 或空? 
-      // 这里的逻辑需要调用者保证传入 current value for append mode
-      state.tempValue = '';
+      state.tempValue = originalValue;
     }
-
-    state.originalValue = ''; // Original value management seems unused or needs specific logic
   })),
 
   exitEditMode: (confirm) => set(produce((state: EditorState) => {

@@ -32,7 +32,7 @@ const FunctionPanel: React.FC = () => {
   const projectData = useProjectStore();
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
 
-  const updateFile = useProjectStore((state) => state.updateFile);
+
   const [isSearching, setIsSearching] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
@@ -78,12 +78,8 @@ const FunctionPanel: React.FC = () => {
       isRegExp
     });
 
-    const newRows = [...file.rows];
-    const newCells = [...newRows[result.rowIndex].cells];
-    newCells[result.colIndex] = newText;
-    newRows[result.rowIndex] = { ...newRows[result.rowIndex], cells: newCells };
-
-    updateFile(result.fileId, { rows: newRows, isDirty: true });
+    // 使用 updateCell
+    projectData.updateCell(result.fileId, result.rowIndex, result.colIndex, newText);
     
     // 替换后通常需要重新搜索以更新结果列表
     handleSearch();
@@ -103,18 +99,23 @@ const FunctionPanel: React.FC = () => {
       const file = projectData.files[fileId];
       if (!file) return;
 
-      const newRows = [...file.rows];
+      const updates: { row: number; col: number; value: string }[] = [];
+
       results.forEach(res => {
-        const originalText = newRows[res.rowIndex].cells[res.colIndex];
+        const originalText = file.rows[res.rowIndex].cells[res.colIndex];
         const newText = searchService.replace(originalText, searchQuery, replaceQuery, {
           isRegExp
         });
-        const newCells = [...newRows[res.rowIndex].cells];
-        newCells[res.colIndex] = newText;
-        newRows[res.rowIndex] = { ...newRows[res.rowIndex], cells: newCells };
+        updates.push({
+            row: res.rowIndex,
+            col: res.colIndex,
+            value: newText
+        });
       });
 
-      updateFile(fileId, { rows: newRows, isDirty: true });
+      if (updates.length > 0) {
+          projectData.batchUpdateCells(fileId, updates, `批量替换 ${updates.length} 处`);
+      }
     });
 
     handleSearch(); // 刷新搜索结果

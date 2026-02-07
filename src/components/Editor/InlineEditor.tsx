@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
+import { useHistoryStore } from '../../stores/history-store';
 import { useProjectStore } from '../../stores/project-store';
 import './InlineEditor.css';
 
@@ -13,6 +14,8 @@ interface InlineEditorProps {
 const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
+  const undoStackRef = useRef<string[]>([]);
+  const lastValueRef = useRef<string>('');
   const { tempValue, updateTempValue, exitEditMode, editMode, selectedFileId } = useEditorStore();
   const [localValue, setLocalValue] = useState(tempValue);
   const updateFile = useProjectStore((state) => state.updateFile);
@@ -26,7 +29,9 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       updateTempValue(value);
       useEditorStore.setState({ originalValue: value });
     }
-    setLocalValue(useEditorStore.getState().tempValue || value);
+    const initialValue = useEditorStore.getState().tempValue || value;
+    setLocalValue(initialValue);
+    lastValueRef.current = initialValue;
     
     // 自动聚焦
     if (inputRef.current) {
@@ -34,6 +39,7 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       // 将光标移到末尾
       inputRef.current.setSelectionRange(tempValue.length, tempValue.length);
     }
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -83,6 +89,50 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       return;
     }
 
+    // Undo: Ctrl+Z
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if (undoStackRef.current.length > 0) {
+            e.preventDefault();
+            const prevValue = undoStackRef.current.pop() ?? '';
+            lastValueRef.current = prevValue;
+            setLocalValue(prevValue);
+            updateTempValue(prevValue);
+            return;
+        }
+        // 如果当前内容与原始值一致（无修改），或者是空（Replace模式刚开始），且想撤销上一步操作
+        // 则退出编辑模式，并触发全局 Undo
+        const store = useEditorStore.getState();
+        if (localValue === store.originalValue) {
+            e.preventDefault();
+            exitEditMode(false); // Cancel edit
+            // Use setTimeout to ensure edit mode is exited before undoing (state sync)
+            setTimeout(() => {
+                useHistoryStore.getState().undo();
+            }, 0);
+            return;
+        }
+        // 否则，允许浏览器原生撤销（撤销文本修改）
+        return;
+    }
+
+    // Redo: Ctrl+Shift+Z or Ctrl+Y
+    if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && e.shiftKey) ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')
+    ) {
+        const store = useEditorStore.getState();
+        if (localValue === store.originalValue) {
+            e.preventDefault();
+            exitEditMode(false);
+            setTimeout(() => {
+                useHistoryStore.getState().redo();
+            }, 0);
+            return;
+        }
+         // 否则，允许浏览器原生重做
+        return;
+    }
+
     // 处理导航键
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -110,6 +160,21 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
     }
   };
 
+  const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
+    const nativeEvent = e.nativeEvent as InputEvent;
+    if (!isComposingRef.current && nativeEvent?.inputType !== 'historyUndo') {
+      const currentValue = e.currentTarget.value;
+      const prevValue = lastValueRef.current;
+      if (currentValue !== prevValue) {
+        undoStackRef.current.push(prevValue);
+        if (undoStackRef.current.length > 100) {
+          undoStackRef.current.shift();
+        }
+        lastValueRef.current = currentValue;
+      }
+    }
+  };
+
   return (
     <input
       ref={inputRef}
@@ -117,6 +182,7 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       className="inline-editor"
       value={localValue}
       onChange={handleChange}
+      onInput={handleInput}
       onCompositionStart={handleCompositionStart}
       onCompositionUpdate={handleCompositionUpdate}
       onCompositionEnd={handleCompositionEnd}
