@@ -171,7 +171,9 @@ export const useEditorStore = create<EditorState>((set) => ({
     state.currentResultIndex = results.length > 0 ? 0 : -1;
   })),
 
-  setCurrentResultIndex: (index) => set(produce((state: EditorState) => { state.currentResultIndex = index; })),
+  setCurrentResultIndex: (index) => set(produce((state: EditorState) => {
+    state.currentResultIndex = index;
+  })),
 
   setValidationErrors: (errors) => set(produce((state: EditorState) => { state.validationErrors = errors; })),
 

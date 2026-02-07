@@ -37,7 +37,7 @@ const FunctionPanel: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
   // 提取公共跳转逻辑
-  const handleJump = async (fileId: string, rowIndex: number, colIndex: number) => {
+  const handleJump = async (fileId: string, rowIndex: number, colIndex: number, desiredIndex?: number) => {
     // 检查文件是否已加载内容，若未加载则自动读取
     const file = projectData.files[fileId];
     if (file && (!file.rows || file.rows.length === 0)) {
@@ -47,7 +47,13 @@ const FunctionPanel: React.FC = () => {
         console.error('自动加载文件失败', e);
       }
     }
-    setSelectedFile(fileId);
+    const currentSelectedFileId = useEditorStore.getState().selectedFileId;
+    if (currentSelectedFileId !== fileId) {
+      setSelectedFile(fileId);
+    }
+    if (desiredIndex !== undefined) {
+      setCurrentResultIndex(desiredIndex);
+    }
     setSelectedCell(rowIndex, colIndex);
   };
 
@@ -124,16 +130,13 @@ const FunctionPanel: React.FC = () => {
   const handleNext = async () => {
     if (searchResults.length === 0) return;
     const nextIndex = (currentResultIndex + 1) % searchResults.length;
-    setCurrentResultIndex(nextIndex);
-    
     const result = searchResults[nextIndex];
-    await handleJump(result.fileId, result.rowIndex, result.colIndex);
+    await handleJump(result.fileId, result.rowIndex, result.colIndex, nextIndex);
   };
 
   const handleResultClick = async (index: number) => {
-    setCurrentResultIndex(index);
     const result = searchResults[index];
-    await handleJump(result.fileId, result.rowIndex, result.colIndex);
+    await handleJump(result.fileId, result.rowIndex, result.colIndex, index);
   };
 
   const handleErrorClick = async (error: ValidationError) => {
