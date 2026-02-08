@@ -1,4 +1,5 @@
 import { indentWithTab, insertTab } from '@codemirror/commands';
+import { toggleTag } from '../../codemirror/tmp-commands';
 import { Compartment, EditorState } from '@codemirror/state';
 import { ViewUpdate, keymap } from '@codemirror/view';
 import { EditorView, basicSetup } from 'codemirror';
@@ -26,6 +27,8 @@ const RichtextEditor: React.FC = () => {
   const exitEditMode = useEditorStore((state) => state.exitEditMode);
   const setEditingLocation = useEditorStore((state) => state.setEditingLocation);
   const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
+  const setEditorView = useEditorStore((state) => state.setEditorView);
+  const setContextMenu = useEditorStore((state) => state.setContextMenu);
 
   const projectFiles = useProjectStore((state) => state.files);
 
@@ -82,6 +85,22 @@ const RichtextEditor: React.FC = () => {
 
         // 快捷键配置
         keymap.of([
+          {
+            key: 'Mod-b',
+            run: (view) => toggleTag(view, 'b')
+          },
+          {
+            key: 'Mod-i',
+            run: (view) => toggleTag(view, 'i')
+          },
+          {
+            key: 'Mod-u',
+            run: (view) => toggleTag(view, 'u')
+          },
+          {
+            key: 'Alt-Shift-5',
+            run: (view) => toggleTag(view, 's')
+          },
           {
             key: 'Tab',
             run: (view) => insertTab(view)
@@ -181,6 +200,12 @@ const RichtextEditor: React.FC = () => {
             if (currentStoreState.isEditing) {
               setEditingLocation('editor-bar');
             }
+          },
+          contextmenu: (e) => {
+             // Only show custom menu if editing or selecting text
+             setContextMenu({ visible: true, x: e.clientX, y: e.clientY });
+             e.preventDefault();
+             return true; 
           }
         }),
 
@@ -199,8 +224,10 @@ const RichtextEditor: React.FC = () => {
     });
 
     viewRef.current = view;
+    setEditorView(view);
 
     return () => {
+      setEditorView(null);
       view.destroy();
     };
   }, []); // 仅挂载时执行一次

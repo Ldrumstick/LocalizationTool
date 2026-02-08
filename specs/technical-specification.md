@@ -604,6 +604,45 @@ const getStyleFromTag = (tag: TMPTag): Record<string, string> => {
 };
 ```
 
+#### 3.3.4 编辑器交互 (Toolbar & Context Menu)
+
+为了实现工具栏和右键菜单与 CodeMirror 实例的解耦交互，采用了以下架构：
+
+**1. Editor View 暴露**
+`EditorStore` 中持有 `editorView` 的引用，使得外部 React 组件（Toolbar, ContextMenu）可以访问编辑器实例。
+
+```typescript
+// stores/editor-store.ts
+interface EditorState {
+  editorView: EditorView | null;
+  setEditorView: (view: EditorView | null) => void;
+}
+```
+
+**2. 命令模式 (Command Pattern)**
+所有富文本操作封装为独立的 CodeMirror Command 函数，接受 `EditorView` 作为参数。
+
+```typescript
+// codemirror/tmp-commands.ts
+export const toggleTag = (view: EditorView, type: TMPTagType) => {
+  // 1. 获取当前选区
+  // 2. 判断是否已包裹标签
+  // 3. 执行 dispatch (add/remove tag)
+};
+
+export const setTagValue = (view: EditorView, type: TMPTagType, value: string) => {
+  // 设置带属性的标签 (如 <size=20>)
+};
+```
+
+**3. UI 组件集成**
+- **Toolbar**: 点击按钮时，从 Store 获取 `editorView`，调用对应的 Command。
+- **Context Menu**: 
+  - 拦截 `contextmenu` 事件，通过 Store 控制菜单显示位置。
+  - 菜单项点击后调用 Command。
+  - **原生控件集成**: 颜色选择器 (`<input type="color">`) 和字号输入模态框 (`EditorInputModal`) 与 Command 系统无缝结合。
+
+
 ---
 
 ### 3.4 搜索与替换模块 (Backend Search)

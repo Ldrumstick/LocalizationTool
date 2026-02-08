@@ -5,10 +5,15 @@ import { useEditorStore } from '../../stores/editor-store';
 import './Editor.css';
 import GridView from './GridView';
 import RichtextEditor from './RichtextEditor';
+import EditorToolbar from './EditorToolbar';
+import EditorContextMenu from './EditorContextMenu';
+import EditorInputModal from './EditorInputModal';
 
 const Editor: React.FC = () => {
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const selectedCell = useEditorStore((state) => state.selectedCell);
+  const inputModal = useEditorStore((state) => state.inputModal);
+  const setInputModal = useEditorStore((state) => state.setInputModal);
   const projectFiles = useProjectStore((state) => state.files);
 
   const currentFile = selectedFileId ? projectFiles[selectedFileId] : null;
@@ -80,6 +85,7 @@ const Editor: React.FC = () => {
           }
         </div>
         <div className="richtext-editor-wrapper">
+          <EditorToolbar />
           {selectedCell ? (
             <RichtextEditor />
           ) : (
@@ -89,6 +95,19 @@ const Editor: React.FC = () => {
           )}
         </div>
       </div>
+      <EditorContextMenu />
+      {inputModal && (
+        <EditorInputModal
+          isOpen={inputModal.isOpen}
+          title={inputModal.title}
+          defaultValue={inputModal.defaultValue}
+          onConfirm={(val) => {
+            inputModal.onConfirm(val);
+            setInputModal(null);
+          }}
+          onCancel={() => setInputModal(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { produce } from 'immer';
 import { create } from 'zustand';
 import { SearchResult, UIState, ValidationError } from '../types';
+import { EditorView } from '@codemirror/view';
 
 interface EditorState extends UIState {
   // 新增：编辑状态
@@ -10,6 +11,14 @@ interface EditorState extends UIState {
   editingLocation: 'cell' | 'editor-bar' | 'header'; // 编辑位置
   tempValue: string;
   originalValue: string;
+  editorView: EditorView | null;
+  contextMenu: { visible: boolean; x: number; y: number } | null;
+  inputModal: { 
+    isOpen: boolean; 
+    title: string; 
+    defaultValue: string; 
+    onConfirm: (val: string) => void;
+  } | null;
   
   // Search State
   searchQuery: string;
@@ -42,6 +51,9 @@ interface EditorState extends UIState {
   exitEditMode: (confirm: boolean) => void;
   updateTempValue: (value: string) => void;
   setEditingLocation: (location: 'cell' | 'editor-bar' | 'header') => void;
+  setEditorView: (view: EditorView | null) => void;
+  setContextMenu: (menu: { visible: boolean; x: number; y: number } | null) => void;
+  setInputModal: (modal: { isOpen: boolean; title: string; defaultValue: string; onConfirm: (val: string) => void } | null) => void;
 
   // Search Actions
   setSearchQuery: (query: string) => void;
@@ -81,6 +93,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   editingLocation: 'cell',
   tempValue: '',
   originalValue: '',
+  editorView: null,
+  contextMenu: null,
+  inputModal: null,
 
   searchQuery: '',
   replaceQuery: '',
@@ -271,6 +286,19 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setEditingLocation: (location) => set(produce((state: EditorState) => {
     state.editingLocation = location;
+  })),
+
+  setEditorView: (view) => set(produce((state: EditorState) => {
+    // EditorView is not a plain object, so we cast it to any to avoid immer issues if strict
+    state.editorView = view as any;
+  })),
+
+  setContextMenu: (menu) => set(produce((state: EditorState) => {
+    state.contextMenu = menu;
+  })),
+
+  setInputModal: (modal) => set(produce((state: EditorState) => {
+    state.inputModal = modal;
   })),
 
   resetUI: () => set({
