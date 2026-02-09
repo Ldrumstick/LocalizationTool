@@ -1,6 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { EditorState, Transaction, Text } from '@codemirror/state';
-import { TMPTagType, parseTMPTags, findTagAtPosition } from './tmp-parser';
+import { TMPTagType, parseTMPTags } from './tmp-parser';
 
 /**
  * 切换指定类型的 TMP 标签 (Wrap/Unwrap)
@@ -28,7 +27,6 @@ export const toggleTag = (view: EditorView, type: TMPTagType, value?: string) =>
             // 更新标签值 logic
             // 简单起见，这里先做 Unwrap 再 Wrap，或者直接替换 Header
             // 但标准 toggle 行为通常是移除
-            const openTagLen = existingTag.openTo - existingTag.openFrom;
             // 计算新的 open tag
             const newOpenTag = `<${type}=${formatValue(value)}>`;
             
