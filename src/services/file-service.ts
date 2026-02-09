@@ -98,10 +98,16 @@ export const fileService = {
       const data = [file.headers, ...file.rows.map(row => row.cells)];
       
       // 生成 CSV 字符串
-      const csvContent = Papa.unparse(data, {
+      let csvContent = Papa.unparse(data, {
         quotes: false, // 仅在必要时添加引号 (Smart Quoting)
         quoteChar: '"',
+        newline: '\r\n', // RFC 4180 style record separator
       });
+
+      // Ensure a trailing line break so external append tools start on a new record.
+      if (csvContent.length > 0 && !csvContent.endsWith('\r\n')) {
+        csvContent += '\r\n';
+      }
 
       // 调用 Electron 保存
       const result = await window.electronAPI.saveFile({
