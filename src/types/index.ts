@@ -55,6 +55,11 @@ export interface SearchResult {
   context: string; // 匹配项附近的文本
 }
 
+export interface SearchResponse {
+  results: SearchResult[];
+  hasMore: boolean;
+}
+
 /**
  * 验证错误接口
  */

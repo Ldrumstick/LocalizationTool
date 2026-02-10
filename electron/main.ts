@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+﻿import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
 import iconv from 'iconv-lite';
@@ -18,7 +18,7 @@ function createWindow() {
     },
   });
 
-  // 创建菜单
+  // 鍒涘缓鑿滃崟
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'File',
@@ -89,9 +89,9 @@ function createWindow() {
   });
 }
 
-// 辅助函数已移动到 file-utils.ts
+// 杈呭姪鍑芥暟宸茬Щ鍔ㄥ埌 file-utils.ts
 
-// IPC 处理：打开项目
+// IPC 澶勭悊锛氭墦寮€椤圭洰
 ipcMain.handle('project:open', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory'],
@@ -104,7 +104,7 @@ ipcMain.handle('project:open', async () => {
   const projectPath = result.filePaths[0];
   const files = await scanCSVFiles(projectPath);
 
-  // 启动文件监听
+  // 鍚姩鏂囦欢鐩戝惉
   if (mainWindow) {
     setupWatcher(mainWindow, projectPath);
   }
@@ -115,143 +115,274 @@ ipcMain.handle('project:open', async () => {
   };
 });
 
-// 辅助函数已移动到 file-utils.ts
+// 杈呭姪鍑芥暟宸茬Щ鍔ㄥ埌 file-utils.ts
 
-// IPC 处理：读取 CSV 文件内容
+// IPC 澶勭悊锛氳鍙?CSV 鏂囦欢鍐呭
 ipcMain.handle('file:read', async (_event, filePath: string) => {
   try {
     return await readFileAndDecode(filePath);
   } catch (error: any) {
-    console.error(`读取文件失败: ${filePath}`, error);
+    console.error(`璇诲彇鏂囦欢澶辫触: ${filePath}`, error);
     throw error;
   }
 });
 
-// IPC 处理：全项目搜索
-ipcMain.handle('project:search', async (_event, { projectPath, query, isRegExp, isCaseSensitive, isGlobalSearch, selectedFileId, ignoredFileIds }) => {
-  // ... (existing search logic implementation) ...
-  // 为了简洁，这里保留原有的 search 实现，不做修改，只是占位表示位置
-  // 实际代码中请不要删除原有的 search 实现
-  const results: any[] = [];
-  
-  try {
-    // 确定搜索范围：如果是全局搜索，扫描所有文件；否则仅搜索指定文件
-    let filesToSearch: { path: string; id: string }[] = [];
-    
-    if (isGlobalSearch) {
-      const allFiles = await scanCSVFiles(projectPath);
-      // Filter out ignored files
-      const ignoredSet = new Set(ignoredFileIds || []);
-      filesToSearch = allFiles
-        .filter((f: any) => !ignoredSet.has(f.id))
-        .map((f: any) => ({ path: f.filePath, id: f.id }));
-    } else if (selectedFileId) {
-      const filePath = Buffer.from(selectedFileId, 'base64').toString();
-      filesToSearch = [{ path: filePath, id: selectedFileId }];
+// IPC 澶勭悊锛氬叏椤圭洰鎼滅储
+type SearchParams = {
+  projectPath: string;
+  query: string;
+  isRegExp: boolean;
+  isCaseSensitive?: boolean;
+  isGlobalSearch: boolean;
+  selectedFileId?: string;
+  ignoredFileIds?: string[];
+  maxResults?: number;
+};
+
+type SearchResultItem = {
+  fileId: string;
+  rowIndex: number;
+  colIndex: number;
+  key: string;
+  context: string;
+};
+
+type SearchExecuteResult = {
+  results: SearchResultItem[];
+  hasMore: boolean;
+  cancelled: boolean;
+};
+
+async function executeProjectSearch(
+  params: SearchParams,
+  onChunk?: (chunk: SearchResultItem[]) => void,
+  shouldCancel?: () => boolean
+): Promise<SearchExecuteResult> {
+  const {
+    projectPath,
+    query,
+    isRegExp,
+    isCaseSensitive,
+    isGlobalSearch,
+    selectedFileId,
+    ignoredFileIds,
+    maxResults
+  } = params;
+
+  const parsedLimit = Number(maxResults);
+  const hardLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : Number.POSITIVE_INFINITY;
+  const useChunkMode = typeof onChunk === 'function';
+  const chunkSize = 200;
+  const results: SearchResultItem[] = [];
+  let chunkBuffer: SearchResultItem[] = [];
+  let matchCount = 0;
+  let hasMore = false;
+
+  const emit = async (item: SearchResultItem) => {
+    if (!useChunkMode) {
+      results.push(item);
+      return;
     }
+    chunkBuffer.push(item);
+    if (chunkBuffer.length >= chunkSize) {
+      onChunk(chunkBuffer);
+      chunkBuffer = [];
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  };
 
-    let regex: RegExp | null = null;
-    let searchTerms: string[] = [];
-    const flags = isCaseSensitive ? 'g' : 'gi';
+  const flushChunk = async () => {
+    if (!useChunkMode || chunkBuffer.length === 0) return;
+    onChunk(chunkBuffer);
+    chunkBuffer = [];
+    await new Promise((resolve) => setImmediate(resolve));
+  };
 
-    if (isRegExp) {
-      regex = new RegExp(query, flags);
+  let filesToSearch: { path: string; id: string }[] = [];
+  if (isGlobalSearch) {
+    const allFiles = await scanCSVFiles(projectPath);
+    const ignoredSet = new Set(ignoredFileIds || []);
+    filesToSearch = allFiles
+      .filter((f: any) => !ignoredSet.has(f.id))
+      .map((f: any) => ({ path: f.filePath, id: f.id }));
+  } else if (selectedFileId) {
+    const filePath = Buffer.from(selectedFileId, 'base64').toString();
+    filesToSearch = [{ path: filePath, id: selectedFileId }];
+  }
+
+  let regex: RegExp | null = null;
+  let searchTerms: string[] = [];
+  const flags = isCaseSensitive ? 'g' : 'gi';
+
+  if (isRegExp) {
+    regex = new RegExp(query, flags);
+  } else {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.includes(' ')) {
+      searchTerms = trimmedQuery.split(/\s+/).filter((t: string) => t.length > 0);
+      if (searchTerms.length === 0) {
+        return { results: [], hasMore: false, cancelled: false };
+      }
     } else {
-      const trimmedQuery = query.trim();
-      if (trimmedQuery.includes(' ')) {
-        searchTerms = trimmedQuery.split(/\s+/).filter((t: string) => t.length > 0);
-        if (searchTerms.length === 0) return [];
-      } else {
-        const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        regex = new RegExp(pattern, flags);
-      }
+      const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      regex = new RegExp(pattern, flags);
     }
+  }
 
-    for (const fileInfo of filesToSearch) {
-      try {
-        const { rows } = await readFileAndDecode(fileInfo.path);
-        
-        rows.forEach((row: any) => {
-          row.cells.forEach((cell: string, colIndex: number) => {
-            if (!cell) return;
-
-            let isMatch = false;
-
-            if (regex) {
-              regex.lastIndex = 0;
-              if (regex.test(cell)) isMatch = true;
-            } else {
-              const target = isCaseSensitive ? cell : cell.toLowerCase();
-              isMatch = searchTerms.every(term => {
-                const t = isCaseSensitive ? term : term.toLowerCase();
-                return target.includes(t);
-              });
-            }
-
-            if (isMatch) {
-              results.push({
-                fileId: fileInfo.id,
-                rowIndex: row.rowIndex,
-                colIndex,
-                key: row.key || '',
-                context: cell.length > 50 ? cell.substring(0, 50) + '...' : cell
-              });
-            }
-          });
-        });
-      } catch (err) {
-        console.warn(`搜索文件失败: ${fileInfo.path}`, err);
-      }
+  outerLoop:
+  for (const fileInfo of filesToSearch) {
+    if (shouldCancel?.()) {
+      return { results: [], hasMore: false, cancelled: true };
     }
+    try {
+      const { rows } = await readFileAndDecode(fileInfo.path);
+      for (const row of rows as any[]) {
+        for (let colIndex = 0; colIndex < row.cells.length; colIndex++) {
+          if (shouldCancel?.()) {
+            return { results: [], hasMore: false, cancelled: true };
+          }
+          const cell = row.cells[colIndex] as string;
+          if (!cell) continue;
 
-    return results;
+          let isMatch = false;
+          if (regex) {
+            regex.lastIndex = 0;
+            if (regex.test(cell)) isMatch = true;
+          } else {
+            const target = isCaseSensitive ? cell : cell.toLowerCase();
+            isMatch = searchTerms.every(term => {
+              const t = isCaseSensitive ? term : term.toLowerCase();
+              return target.includes(t);
+            });
+          }
+
+          if (!isMatch) continue;
+
+          const item: SearchResultItem = {
+            fileId: fileInfo.id,
+            rowIndex: row.rowIndex,
+            colIndex,
+            key: row.key || '',
+            context: cell.length > 50 ? `${cell.substring(0, 50)}...` : cell
+          };
+          await emit(item);
+
+          matchCount += 1;
+          if (matchCount >= hardLimit) {
+            hasMore = true;
+            break outerLoop;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`鎼滅储鏂囦欢澶辫触: ${fileInfo.path}`, err);
+    }
+  }
+
+  await flushChunk();
+  return { results, hasMore, cancelled: false };
+}
+
+// IPC 澶勭悊锛氬叏椤圭洰鎼滅储
+ipcMain.handle('project:search', async (_event, params: SearchParams) => {
+  try {
+    const { results, hasMore } = await executeProjectSearch(params);
+    return { results, hasMore };
   } catch (error) {
-    console.error('搜索执行失败:', error);
-    return [];
+    console.error('鎼滅储鎵ц澶辫触:', error);
+    return { results: [], hasMore: false };
   }
 });
 
-// IPC 处理：构建项目 Key 索引
+const searchStreamTasks = new Map<string, { cancelled: boolean }>();
+
+ipcMain.on('project:search-stream:start', async (event, payload: SearchParams & { requestId: string }) => {
+  const { requestId, ...params } = payload || {};
+  if (!requestId) return;
+
+  const task = { cancelled: false };
+  searchStreamTasks.set(requestId, task);
+
+  try {
+    const result = await executeProjectSearch(
+      params,
+      (chunk) => {
+        if (task.cancelled || chunk.length === 0) return;
+        event.sender.send('project:search-stream:chunk', { requestId, chunk });
+      },
+      () => task.cancelled
+    );
+
+    if (!task.cancelled) {
+      event.sender.send('project:search-stream:done', {
+        requestId,
+        hasMore: result.hasMore,
+        cancelled: result.cancelled
+      });
+    }
+  } catch (error: any) {
+    if (!task.cancelled) {
+      event.sender.send('project:search-stream:done', {
+        requestId,
+        hasMore: false,
+        cancelled: false,
+        error: error?.message || 'search failed'
+      });
+    }
+  } finally {
+    searchStreamTasks.delete(requestId);
+  }
+});
+
+ipcMain.on('project:search-stream:cancel', (_event, payload: { requestId: string }) => {
+  const requestId = payload?.requestId;
+  if (!requestId) return;
+  const task = searchStreamTasks.get(requestId);
+  if (task) {
+    task.cancelled = true;
+  }
+});
+// IPC 澶勭悊锛氭瀯寤洪」鐩?Key 绱㈠紩
 ipcMain.handle('project:build-index', async (_event, projectPath: string) => {
   try {
     const allFiles = await scanCSVFiles(projectPath);
     const index: Record<string, string[]> = {};
 
-    // 并发处理文件读取，提高速度
+    // 骞跺彂澶勭悊鏂囦欢璇诲彇锛屾彁楂橀€熷害
     await Promise.all(allFiles.map(async (file: any) => {
       try {
         const { rows } = await readFileAndDecode(file.filePath);
-        // 提取每一行的第一列作为 Key
+        // 鎻愬彇姣忎竴琛岀殑绗竴鍒椾綔涓?Key
         const keys = rows.map((row: any) => row.cells[0] || '');
         index[file.id] = keys;
       } catch (error) {
-        console.error(`索引构建失败: ${file.fileName}`, error);
+        console.error(`绱㈠紩鏋勫缓澶辫触: ${file.fileName}`, error);
         index[file.id] = [];
       }
     }));
 
     return index;
   } catch (error) {
-    console.error('构建索引失败:', error);
+    console.error('鏋勫缓绱㈠紩澶辫触:', error);
     throw error;
   }
 });
 
 const CONFIG_FILENAME = '.localization.config.json';
 
-// IPC 处理：保存文件
+// IPC 澶勭悊锛氫繚瀛樻枃浠?
 ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
   try {
-    // 1. 编码转换 (默认 UTF-8)
+    // 1. 缂栫爜杞崲 (榛樿 UTF-8)
     const buffer = iconv.encode(content, encoding || 'UTF-8');
     
-    // 2. 写入文件
+    // 2. 鍐欏叆鏂囦欢
     await fs.writeFile(filePath, buffer);
     
-    // 更新最后保存时间，避免 Watcher 自触发
+    // 鏇存柊鏈€鍚庝繚瀛樻椂闂达紝閬垮厤 Watcher 鑷Е鍙?
     updateLastSaveTime(filePath);
 
-    // 3. 获取最新修改时间
+    // 3. 鑾峰彇鏈€鏂颁慨鏀规椂闂?
     const stats = await fs.stat(filePath);
     
     return { 
@@ -259,7 +390,7 @@ ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
       lastModified: stats.mtimeMs 
     };
   } catch (error: any) {
-    console.error(`保存文件失败: ${filePath}`, error);
+    console.error(`淇濆瓨鏂囦欢澶辫触: ${filePath}`, error);
     return { 
       success: false, 
       error: error.message 
@@ -267,30 +398,30 @@ ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
   }
 });
 
-// IPC 处理：读取配置文件
+// IPC 澶勭悊锛氳鍙栭厤缃枃浠?
 ipcMain.handle('config:read', async (_event, projectPath: string) => {
   try {
     const configPath = path.join(projectPath, CONFIG_FILENAME);
     const content = await fs.readFile(configPath, 'utf-8');
     return JSON.parse(content);
   } catch (error: any) {
-    // 如果文件不存在，返回 null，前端会处理默认值
+    // 濡傛灉鏂囦欢涓嶅瓨鍦紝杩斿洖 null锛屽墠绔細澶勭悊榛樿鍊?
     if (error.code === 'ENOENT') {
       return null;
     }
-    console.error(`读取配置文件失败: ${projectPath}`, error);
+    console.error(`璇诲彇閰嶇疆鏂囦欢澶辫触: ${projectPath}`, error);
     throw error;
   }
 });
 
-// IPC 处理：保存配置文件
+// IPC 澶勭悊锛氫繚瀛橀厤缃枃浠?
 ipcMain.handle('config:save', async (_event, { projectPath, config }) => {
   try {
     const configPath = path.join(projectPath, CONFIG_FILENAME);
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
     return { success: true };
   } catch (error: any) {
-    console.error(`保存配置文件失败: ${projectPath}`, error);
+    console.error(`淇濆瓨閰嶇疆鏂囦欢澶辫触: ${projectPath}`, error);
     throw error;
   }
 });
@@ -311,3 +442,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

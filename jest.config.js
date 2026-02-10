@@ -6,6 +6,7 @@ module.exports = {
     moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
         '^@electron/(.*)$': '<rootDir>/electron/$1',
+        '^uuid$': '<rootDir>/tests/mocks/uuid.ts',
         '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     },
     setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],

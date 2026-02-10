@@ -28,6 +28,7 @@ interface EditorState extends UIState {
   isCaseSensitive: boolean;
   isGlobalSearch: boolean;
   searchResults: SearchResult[];
+  currentSearchResult?: SearchResult;
   currentResultIndex: number;
   toggleColumns: Record<string, number[]>;
 
@@ -63,6 +64,8 @@ interface EditorState extends UIState {
   toggleCaseSensitive: () => void;
   toggleGlobalSearch: () => void;
   setSearchResults: (results: SearchResult[]) => void;
+  appendSearchResults: (results: SearchResult[]) => void;
+  setCurrentSearchResult: (result?: SearchResult) => void;
   setCurrentResultIndex: (index: number) => void;
 
   // Validation Actions
@@ -104,6 +107,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isCaseSensitive: false,
   isGlobalSearch: false,
   searchResults: [],
+  currentSearchResult: undefined,
   currentResultIndex: -1,
 
   validationErrors: [],
@@ -197,6 +201,16 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSearchResults: (results) => set(produce((state: EditorState) => {
     state.searchResults = results;
     state.currentResultIndex = results.length > 0 ? 0 : -1;
+    state.currentSearchResult = results.length > 0 ? results[0] : undefined;
+  })),
+
+  appendSearchResults: (results) => set(produce((state: EditorState) => {
+    if (!results || results.length === 0) return;
+    state.searchResults.push(...results);
+  })),
+
+  setCurrentSearchResult: (result) => set(produce((state: EditorState) => {
+    state.currentSearchResult = result;
   })),
 
   setCurrentResultIndex: (index) => set(produce((state: EditorState) => {
@@ -310,6 +324,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     searchQuery: '',
     replaceQuery: '',
     searchResults: [],
+    currentSearchResult: undefined,
     currentResultIndex: -1,
     validationErrors: [],
   }),

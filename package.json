@@ -18,6 +18,7 @@
     "build:mac": "npm run build -- --mac",
     "preview": "vite preview",
     "docs:shortcuts": "node scripts/update-shortcuts-doc.js",
+    "perf:search": "node scripts/benchmark-search-latency.js",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",

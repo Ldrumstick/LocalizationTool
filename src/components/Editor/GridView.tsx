@@ -93,7 +93,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
     const setSelectedRange = useEditorStore((state) => state.setSelectedRange);
     const searchResults = useEditorStore((state) => state.searchResults);
-    const currentResultIndex = useEditorStore((state) => state.currentResultIndex);
+    const currentSearchResult = useEditorStore((state) => state.currentSearchResult);
     const selectedFileId = useEditorStore((state) => state.selectedFileId);
     const isEditing = useEditorStore((state) => state.isEditing);
     const editingCell = useEditorStore((state) => state.editingCell);
@@ -730,14 +730,17 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         const isCurrentEditing = isEditing && editingCell?.row === rowIndex && editingCell?.col === columnIndex;
 
         // 搜索匹配判断
-        const currentResult = searchResults[currentResultIndex];
+        const currentResult = currentSearchResult;
         const isCurrentMatch = currentResult &&
             currentResult.fileId === selectedFileId &&
             currentResult.rowIndex === rowIndex &&
             currentResult.colIndex === columnIndex;
 
-        const isOtherMatch = searchResults.some((res, idx) =>
-            idx !== currentResultIndex &&
+        const isOtherMatch = searchResults.some((res) =>
+            !(currentResult &&
+              res.fileId === currentResult.fileId &&
+              res.rowIndex === currentResult.rowIndex &&
+              res.colIndex === currentResult.colIndex) &&
             res.fileId === selectedFileId &&
             res.rowIndex === rowIndex &&
             res.colIndex === columnIndex
@@ -924,7 +927,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 {isBottomRight && <div className="fill-handle" onMouseDown={(e) => handleFillMouseDown(e, rowIndex, columnIndex)} />}
             </div>
         );
-    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentResultIndex, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, fillState, currentToggleCols]);
+    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentSearchResult, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, fillState, currentToggleCols]);
 
     const handleRowContextMenu = (rowIndex: number, e: React.MouseEvent) => {
         e.preventDefault();

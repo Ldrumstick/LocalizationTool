@@ -140,8 +140,10 @@
 /* Results List - Grouping */
 .search-results {
   flex: 1;
-  overflow-y: auto; /* Scroll here */
+  overflow: hidden;
   padding: 8px 12px 12px 12px; /* Content padding */
+  display: flex;
+  flex-direction: column;
 }
 
 .results-info {
@@ -157,6 +159,11 @@
   margin: 0;
 }
 
+.results-list-virtual {
+  flex: 1;
+  min-height: 0;
+}
+
 .file-group {
     margin-bottom: 5px;
 }
@@ -164,6 +171,8 @@
 .file-group-header {
     display: flex;
     align-items: center;
+    height: 100%;
+    box-sizing: border-box;
     padding: 4px 8px;
     cursor: pointer;
     font-size: 12px;
@@ -212,6 +221,8 @@
 
 .match-item {
     position: relative;
+    height: 100%;
+    box-sizing: border-box;
     padding: 6px 8px 6px 28px; /* Indent matches, increase padding */
     cursor: pointer;
     font-family: Consolas, monospace;

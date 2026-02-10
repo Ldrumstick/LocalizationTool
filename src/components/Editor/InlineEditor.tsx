@@ -18,8 +18,7 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
   const lastValueRef = useRef<string>('');
   const { tempValue, updateTempValue, exitEditMode, editMode, selectedFileId } = useEditorStore();
   const [localValue, setLocalValue] = useState(tempValue);
-  const updateFile = useProjectStore((state) => state.updateFile);
-  const files = useProjectStore((state) => state.files);
+  const updateCell = useProjectStore((state) => state.updateCell);
 
   useEffect(() => {
     // 初始化 tempValue 和 originalValue
@@ -70,17 +69,8 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
 
   const confirmEdit = () => {
     if (!selectedFileId) return;
-    
-    const file = files[selectedFileId];
-    if (!file) return;
-
-    // 更新单元格内容到 projectStore
-    const newRows = [...file.rows];
-    const newCells = [...newRows[row].cells];
-    newCells[col] = tempValue;
-    newRows[row] = { ...newRows[row], cells: newCells };
-
-    updateFile(selectedFileId, { rows: newRows, isDirty: true });
+    // Use updateCell to ensure history entry is recorded for undo/redo.
+    updateCell(selectedFileId, row, col, tempValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

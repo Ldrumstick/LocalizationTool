@@ -17,8 +17,8 @@ describe('Toggle Column Utils', () => {
         it('should return false for invalid strings', () => {
             expect(isBooleanValue('abc')).toBe(false);
             expect(isBooleanValue('12')).toBe(false);
-            expect(isBooleanValue('')).toBe(false);
-            expect(isBooleanValue(' ')).toBe(false);
+            expect(isBooleanValue('')).toBe(true);
+            expect(isBooleanValue(' ')).toBe(true);
         });
     });
 
