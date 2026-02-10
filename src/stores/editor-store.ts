@@ -169,8 +169,10 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setSelectedCell: (row, col) => set(produce((state: EditorState) => {
     if (row === undefined || col === undefined) {
+      if (state.selectedCell === undefined) return;
       state.selectedCell = undefined;
     } else {
+      if (state.selectedCell?.row === row && state.selectedCell?.col === col) return;
       state.selectedCell = { row, col };
     }
   })),

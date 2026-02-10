@@ -37,7 +37,7 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
     if (inputRef.current) {
       inputRef.current.focus();
       // 将光标移到末尾
-      inputRef.current.setSelectionRange(tempValue.length, tempValue.length);
+      inputRef.current.setSelectionRange(initialValue.length, initialValue.length);
     }
     return undefined;
   }, []);
@@ -187,6 +187,9 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       onCompositionUpdate={handleCompositionUpdate}
       onCompositionEnd={handleCompositionEnd}
       onKeyDown={handleKeyDown}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
     />
   );
 };

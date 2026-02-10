@@ -739,6 +739,12 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             // Close context menu if open
             setContextMenuState(prev => ({ ...prev, visible: false }));
 
+            // Keep caret/selection stable while editing current cell.
+            if (isCurrentEditing) {
+                e.stopPropagation();
+                return;
+            }
+
             // 如果正在编辑其他单元格，先保存并退出编辑模式
             if (isEditing && editingCell) {
                 if (editingCell.row !== rowIndex || editingCell.col !== columnIndex) {
