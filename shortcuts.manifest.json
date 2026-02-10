@@ -1,0 +1,21 @@
+[
+  { "keys": "Ctrl/Cmd + O", "action": "Open project", "scope": "Global (native menu)" },
+  { "keys": "Ctrl/Cmd + S", "action": "Save all files", "scope": "Global (native menu)" },
+  { "keys": "Ctrl/Cmd + Z", "action": "Undo", "scope": "Global" },
+  { "keys": "Ctrl/Cmd + Shift + Z", "action": "Redo", "scope": "Global" },
+  { "keys": "Ctrl/Cmd + Y", "action": "Redo", "scope": "Global" },
+  { "keys": "Ctrl/Cmd + F", "action": "Focus search input", "scope": "Global / Search panel" },
+  { "keys": "Ctrl/Cmd + H", "action": "Focus replace input", "scope": "Global / Search panel" },
+  { "keys": "F3", "action": "Next search result", "scope": "Search panel" },
+  { "keys": "Shift + F3", "action": "Previous search result", "scope": "Search panel" },
+  { "keys": "Alt + C", "action": "Toggle case sensitivity", "scope": "Search panel" },
+  { "keys": "Alt + R", "action": "Toggle regex mode", "scope": "Search panel" },
+  { "keys": "Ctrl/Cmd + Alt + Enter", "action": "Replace all", "scope": "Search panel" },
+  { "keys": "Ctrl/Cmd + C", "action": "Copy selected cell/range", "scope": "Grid" },
+  { "keys": "Ctrl/Cmd + V", "action": "Paste into selected cell/range", "scope": "Grid" },
+  { "keys": "F2", "action": "Enter append edit mode", "scope": "Grid" },
+  { "keys": "Enter", "action": "Move selection to next row", "scope": "Grid (non-editing)" },
+  { "keys": "Tab", "action": "Move selection to next column", "scope": "Grid (non-editing)" },
+  { "keys": "Shift + Tab", "action": "Move selection to previous column", "scope": "Grid (non-editing)" },
+  { "keys": "Arrow Up/Down/Left/Right", "action": "Cell navigation", "scope": "Grid (non-editing)" }
+]

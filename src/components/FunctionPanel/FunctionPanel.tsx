@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useProjectStore } from '../../stores/project-store';
 import { useEditorStore } from '../../stores/editor-store';
 import { searchService } from '../../services/search-service';
@@ -6,6 +6,7 @@ import { fileService } from '../../services/file-service';
 import { validatorService } from '../../services/validator-service';
 import { SearchResult, ValidationError } from '../../types';
 import { useDebounce } from '../../hooks/useDebounce';
+import { hasModKey, isEditableTarget, registerShortcut, runShortcutRules, ShortcutPriority } from '../../services/shortcut-service';
 import './FunctionPanel.css';
 
 const FunctionPanel: React.FC = () => {
@@ -38,6 +39,8 @@ const FunctionPanel: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search query
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -171,6 +174,88 @@ const FunctionPanel: React.FC = () => {
     await handleJump(error.fileId, error.rowIndex, error.colIndex);
   };
 
+  const focusSearchInput = () => {
+    setActiveTab('search');
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  };
+
+  const focusReplaceInput = () => {
+    setActiveTab('search');
+    requestAnimationFrame(() => {
+      replaceInputRef.current?.focus();
+      replaceInputRef.current?.select();
+    });
+  };
+
+  const jumpSearchResult = (direction: 1 | -1) => {
+    if (searchResults.length === 0) return;
+    const base = currentResultIndex >= 0 ? currentResultIndex : 0;
+    const nextIndex = (base + direction + searchResults.length) % searchResults.length;
+    const target = searchResults[nextIndex];
+    if (!target) return;
+    void handleJump(target.fileId, target.rowIndex, target.colIndex, nextIndex);
+  };
+
+  useEffect(() => {
+    const handleShortcutFocusSearch = () => focusSearchInput();
+    const handleShortcutFocusReplace = () => focusReplaceInput();
+
+    window.addEventListener('shortcut:focus-search', handleShortcutFocusSearch as EventListener);
+    window.addEventListener('shortcut:focus-replace', handleShortcutFocusReplace as EventListener);
+    return () => {
+      window.removeEventListener('shortcut:focus-search', handleShortcutFocusSearch as EventListener);
+      window.removeEventListener('shortcut:focus-replace', handleShortcutFocusReplace as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (runShortcutRules(e, [
+        {
+          match: (ev) => ev.key === 'F3',
+          run: (ev) => {
+            ev.preventDefault();
+            jumpSearchResult(ev.shiftKey ? -1 : 1);
+          }
+        },
+        {
+          match: (ev) => hasModKey(ev) && ev.altKey && ev.key === 'Enter',
+          run: (ev) => {
+            ev.preventDefault();
+            setActiveTab('search');
+            handleReplaceAll();
+          }
+        }
+      ])) return true;
+
+      if (isEditableTarget(e.target)) return false;
+
+      return runShortcutRules(e, [
+        {
+          match: (ev) => !hasModKey(ev) && ev.altKey && ev.key.toLowerCase() === 'c',
+          run: (ev) => {
+            ev.preventDefault();
+            setActiveTab('search');
+            toggleCaseSensitive();
+          }
+        },
+        {
+          match: (ev) => !hasModKey(ev) && ev.altKey && ev.key.toLowerCase() === 'r',
+          run: (ev) => {
+            ev.preventDefault();
+            setActiveTab('search');
+            toggleRegExp();
+          }
+        }
+      ]);
+    };
+
+    return registerShortcut(handleKeyDown, { priority: ShortcutPriority.panel });
+  }, [currentResultIndex, searchResults, setActiveTab, toggleCaseSensitive, toggleRegExp, handleReplaceAll]);
+
   React.useEffect(() => {
     if (Object.keys(projectData.files).length > 0 || projectData.keyIndex) {
       const errors = validatorService.validateProject(projectData);
@@ -294,6 +379,7 @@ const FunctionPanel: React.FC = () => {
                 {/* Search Input */}
                 <div className="input-wrapper">
                     <input 
+                        ref={searchInputRef}
                         type="text" 
                         placeholder="查找"
                         value={searchQuery} 
@@ -328,6 +414,7 @@ const FunctionPanel: React.FC = () => {
                 {/* Replace Input with Button */}
                 <div className="input-wrapper">
                     <input 
+                        ref={replaceInputRef}
                         type="text" 
                         placeholder="替换为"
                         value={replaceQuery} 

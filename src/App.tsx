@@ -6,6 +6,7 @@ import FunctionPanel from './components/FunctionPanel/FunctionPanel';
 import FileMonitor from './components/FileMonitor/FileMonitor';
 import { useAutoSave } from './hooks/use-auto-save';
 import { fileService } from './services/file-service';
+import { hasModKey, isEditableTarget, registerShortcut, runShortcutRules, ShortcutPriority } from './services/shortcut-service';
 import './App.css';
 
 function App() {
@@ -41,30 +42,44 @@ function App() {
     // 全局快捷键监听 (Undo/Redo)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // 如果是在输入框或编辑器中，交由原生/组件处理
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-                return;
-            }
+            if (runShortcutRules(e, [
+                {
+                    match: (ev) => hasModKey(ev) && ev.key.toLowerCase() === 'f',
+                    run: (ev) => {
+                        ev.preventDefault();
+                        window.dispatchEvent(new CustomEvent('shortcut:focus-search'));
+                    }
+                },
+                {
+                    match: (ev) => hasModKey(ev) && ev.key.toLowerCase() === 'h',
+                    run: (ev) => {
+                        ev.preventDefault();
+                        window.dispatchEvent(new CustomEvent('shortcut:focus-replace'));
+                    }
+                }
+            ])) return true;
 
-            // Undo: Ctrl+Z / Cmd+Z
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                useHistoryStore.getState().undo();
-            }
+            if (isEditableTarget(e.target)) return false;
 
-            // Redo: Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y
-            if (
-                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && e.shiftKey) ||
-                ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y')
-            ) {
-                e.preventDefault();
-                useHistoryStore.getState().redo();
-            }
+            return runShortcutRules(e, [
+                {
+                    match: (ev) => hasModKey(ev) && ev.key.toLowerCase() === 'z' && !ev.shiftKey,
+                    run: (ev) => {
+                        ev.preventDefault();
+                        useHistoryStore.getState().undo();
+                    }
+                },
+                {
+                    match: (ev) => (hasModKey(ev) && ev.key.toLowerCase() === 'z' && ev.shiftKey) || (hasModKey(ev) && ev.key.toLowerCase() === 'y'),
+                    run: (ev) => {
+                        ev.preventDefault();
+                        useHistoryStore.getState().redo();
+                    }
+                }
+            ]);
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        return registerShortcut(handleKeyDown, { priority: ShortcutPriority.app });
     }, []);
 
     return (

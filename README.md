@@ -190,18 +190,29 @@ localization-tool/
 
 ## ⌨️ 快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Ctrl/Cmd + S` | 保存文件 |
-| `Ctrl/Cmd + Z` | 撤销 |
-| `Ctrl/Cmd + Shift + Z` | 重做 |
-| `Ctrl/Cmd + F` | 查找 |
-| `Ctrl/Cmd + H` | 替换 |
-| `Ctrl/Cmd + C` | 复制 |
-| `Ctrl/Cmd + V` | 粘贴 |
-| `Enter` | 下一行 |
-| `Tab` | 右移一格 |
-| `方向键` | 移动聚焦 |
+<!-- shortcuts-table:start -->
+| Shortcut | Action | Scope |
+| --- | --- | --- |
+| `Ctrl/Cmd + O` | Open project | Global (native menu) |
+| `Ctrl/Cmd + S` | Save all files | Global (native menu) |
+| `Ctrl/Cmd + Z` | Undo | Global |
+| `Ctrl/Cmd + Shift + Z` | Redo | Global |
+| `Ctrl/Cmd + Y` | Redo | Global |
+| `Ctrl/Cmd + F` | Focus search input | Global / Search panel |
+| `Ctrl/Cmd + H` | Focus replace input | Global / Search panel |
+| `F3` | Next search result | Search panel |
+| `Shift + F3` | Previous search result | Search panel |
+| `Alt + C` | Toggle case sensitivity | Search panel |
+| `Alt + R` | Toggle regex mode | Search panel |
+| `Ctrl/Cmd + Alt + Enter` | Replace all | Search panel |
+| `Ctrl/Cmd + C` | Copy selected cell/range | Grid |
+| `Ctrl/Cmd + V` | Paste into selected cell/range | Grid |
+| `F2` | Enter append edit mode | Grid |
+| `Enter` | Move selection to next row | Grid (non-editing) |
+| `Tab` | Move selection to next column | Grid (non-editing) |
+| `Shift + Tab` | Move selection to previous column | Grid (non-editing) |
+| `Arrow Up/Down/Left/Right` | Cell navigation | Grid (non-editing) |
+<!-- shortcuts-table:end -->
 
 ---
 

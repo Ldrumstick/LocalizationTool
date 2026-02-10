@@ -7,6 +7,7 @@ import { CSVRow } from '../../types';
 import { generateFillData } from '../../utils/fill-logic';
 import { detectBooleanColumns, isBooleanValue, isTruthyValue, toggleBooleanValue } from '../../utils/toggle-column';
 import { calculateAutoFitWidth } from '../../utils/width-measurement';
+import { hasModKey, registerShortcut, runShortcutRules, ShortcutPriority } from '../../services/shortcut-service';
 import ContextMenu, { MenuItem } from './ContextMenu';
 import InlineEditor from './InlineEditor';
 import RowHeaders from './RowHeaders';
@@ -523,32 +524,36 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             const isInput = target.tagName === 'INPUT';
             const isCodeMirror = target.classList.contains('cm-content') || target.closest('.cm-editor');
 
-            if (isInput) return;
-            if (editingLocation === 'editor-bar' && isCodeMirror) return;
+            if (isInput) return false;
+            if (editingLocation === 'editor-bar' && isCodeMirror) return false;
 
-            if (!selectedCell || !selectedFileId || isEditing) return;
+            if (!selectedCell || !selectedFileId || isEditing) return false;
 
-            if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
-                e.preventDefault();
-                void handleCopy({ preventDefault: () => { } } as React.ClipboardEvent);
-                return;
-            }
-
-            if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
-                e.preventDefault();
-                void handlePaste({ preventDefault: () => { } } as React.ClipboardEvent);
-                return;
-            }
-
-            // F2 进入编辑模式（追加）
-            if (e.key === 'F2') {
-                e.preventDefault();
-                const file = useProjectStore.getState().files[selectedFileId];
-                const content = file?.rows[selectedCell.row]?.cells[selectedCell.col] || '';
-                enterEditMode('append', content, content);
-                setEditingLocation('cell');
-                return;
-            }
+            if (runShortcutRules(e, [
+                {
+                    match: (ev) => hasModKey(ev) && (ev.key === 'c' || ev.key === 'C'),
+                    run: (ev) => {
+                        ev.preventDefault();
+                        void handleCopy({ preventDefault: () => { } } as React.ClipboardEvent);
+                    }
+                },
+                {
+                    match: (ev) => hasModKey(ev) && (ev.key === 'v' || ev.key === 'V'),
+                    run: (ev) => {
+                        ev.preventDefault();
+                        void handlePaste({ preventDefault: () => { } } as React.ClipboardEvent);
+                    }
+                },
+                {
+                    match: (ev) => ev.key === 'F2',
+                    run: () => {
+                        const file = useProjectStore.getState().files[selectedFileId];
+                        const content = file?.rows[selectedCell.row]?.cells[selectedCell.col] || '';
+                        enterEditMode('append', content, content);
+                        setEditingLocation('cell');
+                    }
+                }
+            ])) return true;
 
             // Delete key handling for rows
             if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -562,15 +567,19 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             }
 
             // Tab 和 Enter 键导航（阻止默认行为）
-            if (e.key === 'Tab' || e.key === 'Enter') {
-                e.preventDefault();
-                const directionMap: Record<string, 'up' | 'down' | 'left' | 'right' | 'enter' | 'tab' | 'shift-tab'> = {
-                    'Enter': 'enter',
-                    'Tab': e.shiftKey ? 'shift-tab' : 'tab'
-                };
-                navigateCell(directionMap[e.key]);
-                return;
-            }
+            if (runShortcutRules(e, [
+                {
+                    match: (ev) => ev.key === 'Tab' || ev.key === 'Enter',
+                    run: (ev) => {
+                        ev.preventDefault();
+                        const directionMap: Record<string, 'up' | 'down' | 'left' | 'right' | 'enter' | 'tab' | 'shift-tab'> = {
+                            Enter: 'enter',
+                            Tab: ev.shiftKey ? 'shift-tab' : 'tab'
+                        };
+                        navigateCell(directionMap[ev.key]);
+                    }
+                }
+            ])) return true;
 
             // 直接输入 → 替换模式
             // 排除控制键、功能键等
@@ -586,24 +595,30 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 const content = file?.rows[selectedCell.row]?.cells[selectedCell.col] || '';
                 enterEditMode('replace', content, e.key);
                 setEditingLocation('cell');
-                return;
+                return true;
             }
 
             // 方向键导航（非编辑模式）
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                e.preventDefault();
-                const directionMap: Record<string, 'up' | 'down' | 'left' | 'right'> = {
-                    'ArrowUp': 'up',
-                    'ArrowDown': 'down',
-                    'ArrowLeft': 'left',
-                    'ArrowRight': 'right'
-                };
-                navigateCell(directionMap[e.key]);
-            }
+            if (runShortcutRules(e, [
+                {
+                    match: (ev) => ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key),
+                    run: (ev) => {
+                        ev.preventDefault();
+                        const directionMap: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+                            ArrowUp: 'up',
+                            ArrowDown: 'down',
+                            ArrowLeft: 'left',
+                            ArrowRight: 'right'
+                        };
+                        navigateCell(directionMap[ev.key]);
+                    }
+                }
+            ])) return true;
+
+            return false;
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        return registerShortcut(handleKeyDown, { priority: ShortcutPriority.grid });
     }, [selectedCell, selectedFileId, isEditing, enterEditMode, navigateCell, editingLocation, handleCopy, handlePaste]);
 
     // 自动滚动到选中项

@@ -17,6 +17,7 @@
     "build:win": "npm run build -- --win",
     "build:mac": "npm run build -- --mac",
     "preview": "vite preview",
+    "docs:shortcuts": "node scripts/update-shortcuts-doc.js",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
