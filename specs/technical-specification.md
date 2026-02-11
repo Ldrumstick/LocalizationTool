@@ -2,9 +2,9 @@
 
 ## 文档版本
 
-- **版本**: v1.0
+- **版本**: v1.1
 - **创建日期**: 2026-02-04
-- **最后更新**: 2026-02-04
+- **最后更新**: 2026-02-11
 
 ---
 
@@ -35,6 +35,7 @@
 **文件系统**
 - `chokidar`: ^3.5.3 - 文件监控
 - `electron-store`: ^8.1.0 - 本地数据持久化
+- `electron-updater`: ^6.7.3 - 应用自动更新
 
 **状态管理**
 - `zustand`: ^4.5.0 - 轻量级状态管理
@@ -73,6 +74,7 @@
 │  - 文件系统操作                                  │
 │  - CSV 编码检测/读写                             │
 │  - 文件监控                                      │
+│  - 应用更新检查/下载/安装                         │
 │  - IPC 通信管理                                  │
 └───────────────┬─────────────────────────────────┘
                 │ IPC Communication
@@ -316,6 +318,42 @@ watcher.on('change', (filePath) => {
 - 检测到变更时弹出对话框
 - 选项：重新加载 / 保留本地 / 合并 / 手动解决
 - 合并策略：基于行的三方合并（原始版本 / 本地版本 / 远程版本）
+
+#### 3.1.5 应用更新机制
+
+更新能力由主进程 `electron/update-service.ts` 管理，基于 `electron-updater` 与 GitHub Releases。
+
+**菜单入口**：
+- `Help -> Check for Updates...`：手动触发检查并打开更新窗口
+- `Help -> Version x.y.z`：展示当前应用版本（只读）
+
+**启动行为**：
+- `app.whenReady()` 后自动执行一次检查更新
+- 开发模式不执行实际下载/安装，返回提示信息
+
+**IPC 接口**：
+
+```typescript
+// 请求
+ipcRenderer.invoke('update:get-state');
+ipcRenderer.invoke('update:check', { manual?: boolean });
+ipcRenderer.invoke('update:download');
+ipcRenderer.invoke('update:install');
+ipcRenderer.invoke('update:ignore-latest');
+
+// 事件
+ipcRenderer.on('update:state', handler);
+ipcRenderer.on('update:show-dialog', handler);
+```
+
+**状态流转**：
+- `idle` -> `checking` -> `available` / `not-available` / `error`
+- `available` -> `downloading` -> `downloaded`
+- 用户点击“更新并安装”时，下载完成后自动执行安装（`quitAndInstall`）
+
+**忽略策略**：
+- 通过 `electron-store` 持久化 `ignoredVersion`
+- 被忽略版本不会再自动弹窗，但手动菜单检查仍可查看并更新
 
 ---
 

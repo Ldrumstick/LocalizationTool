@@ -1,0 +1,123 @@
+.update-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+
+.update-modal {
+    width: min(560px, 92vw);
+    max-height: 82vh;
+    overflow: auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+    padding: 18px;
+}
+
+.update-modal h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    color: #1f2937;
+}
+
+.update-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.update-meta div {
+    background: #f3f4f6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.update-meta span {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.update-meta strong {
+    font-size: 13px;
+    color: #111827;
+}
+
+.update-status {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: #374151;
+}
+
+.update-progress {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.update-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #22c55e);
+    transition: width 0.2s ease;
+}
+
+.update-notes {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.update-notes-title {
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.update-notes pre {
+    margin: 0;
+    padding: 10px;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    color: #111827;
+}
+
+.update-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.update-actions button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #374151;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.update-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.update-actions button.primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}

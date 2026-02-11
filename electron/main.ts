@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import iconv from 'iconv-lite';
 import { setupWatcher, stopWatcher, updateLastSaveTime } from './watcher';
 import { scanCSVFiles, readFileAndDecode } from './file-utils';
+import { checkForUpdates, initializeUpdateService } from './update-service';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -72,6 +73,24 @@ function createWindow() {
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Check for Updates...',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('update:show-dialog', { reason: 'manual' });
+            }
+            void checkForUpdates(true);
+          }
+        },
+        {
+          label: `Version ${app.getVersion()}`,
+          enabled: false
+        }
+      ]
     }
   ];
   const menu = Menu.buildFromTemplate(menuTemplate);
@@ -81,7 +100,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist-renderer/index.html'));
   }
 
   mainWindow.on('closed', () => {
@@ -427,7 +446,9 @@ ipcMain.handle('config:save', async (_event, { projectPath, config }) => {
 });
 
 app.whenReady().then(() => {
+  initializeUpdateService(() => mainWindow);
   createWindow();
+  void checkForUpdates(false);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

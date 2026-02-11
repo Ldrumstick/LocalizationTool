@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => {
     },
     base: './',
     build: {
-      outDir: 'dist',
+      outDir: 'dist-renderer',
       emptyOutDir: true,
     },
     server: {
