@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
 import iconv from 'iconv-lite';
@@ -19,7 +19,7 @@ function createWindow() {
     },
   });
 
-  // 鍒涘缓鑿滃崟
+  // 构建应用菜单
   const menuTemplate: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'File',
@@ -108,9 +108,9 @@ function createWindow() {
   });
 }
 
-// 杈呭姪鍑芥暟宸茬Щ鍔ㄥ埌 file-utils.ts
+// 辅助函数已移动到 file-utils.ts
 
-// IPC 澶勭悊锛氭墦寮€椤圭洰
+// IPC：打开项目
 ipcMain.handle('project:open', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory'],
@@ -123,7 +123,7 @@ ipcMain.handle('project:open', async () => {
   const projectPath = result.filePaths[0];
   const files = await scanCSVFiles(projectPath);
 
-  // 鍚姩鏂囦欢鐩戝惉
+  // 启动文件监听
   if (mainWindow) {
     setupWatcher(mainWindow, projectPath);
   }
@@ -134,19 +134,19 @@ ipcMain.handle('project:open', async () => {
   };
 });
 
-// 杈呭姪鍑芥暟宸茬Щ鍔ㄥ埌 file-utils.ts
+// 辅助函数已移动到 file-utils.ts
 
-// IPC 澶勭悊锛氳鍙?CSV 鏂囦欢鍐呭
+// IPC：读取 CSV 文件内容
 ipcMain.handle('file:read', async (_event, filePath: string) => {
   try {
     return await readFileAndDecode(filePath);
   } catch (error: any) {
-    console.error(`璇诲彇鏂囦欢澶辫触: ${filePath}`, error);
+    console.error(`读取文件失败: ${filePath}`, error);
     throw error;
   }
 });
 
-// IPC 澶勭悊锛氬叏椤圭洰鎼滅储
+// IPC：全项目搜索
 type SearchParams = {
   projectPath: string;
   query: string;
@@ -294,7 +294,7 @@ async function executeProjectSearch(
         }
       }
     } catch (err) {
-      console.warn(`鎼滅储鏂囦欢澶辫触: ${fileInfo.path}`, err);
+      console.warn(`搜索文件失败: ${fileInfo.path}`, err);
     }
   }
 
@@ -302,13 +302,13 @@ async function executeProjectSearch(
   return { results, hasMore, cancelled: false };
 }
 
-// IPC 澶勭悊锛氬叏椤圭洰鎼滅储
+// IPC：全项目搜索
 ipcMain.handle('project:search', async (_event, params: SearchParams) => {
   try {
     const { results, hasMore } = await executeProjectSearch(params);
     return { results, hasMore };
   } catch (error) {
-    console.error('鎼滅储鎵ц澶辫触:', error);
+    console.error('搜索执行失败:', error);
     return { results: [], hasMore: false };
   }
 });
@@ -361,86 +361,87 @@ ipcMain.on('project:search-stream:cancel', (_event, payload: { requestId: string
     task.cancelled = true;
   }
 });
-// IPC 澶勭悊锛氭瀯寤洪」鐩?Key 绱㈠紩
+
+// IPC：构建项目 Key 索引
 ipcMain.handle('project:build-index', async (_event, projectPath: string) => {
   try {
     const allFiles = await scanCSVFiles(projectPath);
     const index: Record<string, string[]> = {};
 
-    // 骞跺彂澶勭悊鏂囦欢璇诲彇锛屾彁楂橀€熷害
+    // 并发读取文件以提升速度
     await Promise.all(allFiles.map(async (file: any) => {
       try {
         const { rows } = await readFileAndDecode(file.filePath);
-        // 鎻愬彇姣忎竴琛岀殑绗竴鍒椾綔涓?Key
+        // 提取每一行第一列作为 Key
         const keys = rows.map((row: any) => row.cells[0] || '');
         index[file.id] = keys;
       } catch (error) {
-        console.error(`绱㈠紩鏋勫缓澶辫触: ${file.fileName}`, error);
+        console.error(`索引构建失败: ${file.fileName}`, error);
         index[file.id] = [];
       }
     }));
 
     return index;
   } catch (error) {
-    console.error('鏋勫缓绱㈠紩澶辫触:', error);
+    console.error('构建索引失败:', error);
     throw error;
   }
 });
 
 const CONFIG_FILENAME = '.localization.config.json';
 
-// IPC 澶勭悊锛氫繚瀛樻枃浠?
+// IPC：保存文件
 ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
   try {
-    // 1. 缂栫爜杞崲 (榛樿 UTF-8)
+    // 1. 编码转换（默认 UTF-8）
     const buffer = iconv.encode(content, encoding || 'UTF-8');
-    
-    // 2. 鍐欏叆鏂囦欢
+
+    // 2. 写入文件
     await fs.writeFile(filePath, buffer);
-    
-    // 鏇存柊鏈€鍚庝繚瀛樻椂闂达紝閬垮厤 Watcher 鑷Е鍙?
+
+    // 更新最后保存时间，避免 Watcher 自触发
     updateLastSaveTime(filePath);
 
-    // 3. 鑾峰彇鏈€鏂颁慨鏀规椂闂?
+    // 3. 获取最新修改时间并返回给调用方
     const stats = await fs.stat(filePath);
-    
-    return { 
-      success: true, 
-      lastModified: stats.mtimeMs 
+
+    return {
+      success: true,
+      lastModified: stats.mtimeMs
     };
   } catch (error: any) {
-    console.error(`淇濆瓨鏂囦欢澶辫触: ${filePath}`, error);
-    return { 
-      success: false, 
-      error: error.message 
+    console.error(`保存文件失败: ${filePath}`, error);
+    return {
+      success: false,
+      error: error.message
     };
   }
 });
 
-// IPC 澶勭悊锛氳鍙栭厤缃枃浠?
+// IPC：读取配置文件
 ipcMain.handle('config:read', async (_event, projectPath: string) => {
   try {
     const configPath = path.join(projectPath, CONFIG_FILENAME);
     const content = await fs.readFile(configPath, 'utf-8');
     return JSON.parse(content);
   } catch (error: any) {
-    // 濡傛灉鏂囦欢涓嶅瓨鍦紝杩斿洖 null锛屽墠绔細澶勭悊榛樿鍊?
+    // 配置文件不存在时返回 null，由前端处理默认值
     if (error.code === 'ENOENT') {
       return null;
     }
-    console.error(`璇诲彇閰嶇疆鏂囦欢澶辫触: ${projectPath}`, error);
+    console.error(`读取配置文件失败: ${projectPath}`, error);
     throw error;
   }
 });
 
-// IPC 澶勭悊锛氫繚瀛橀厤缃枃浠?
+// IPC：保存配置文件
 ipcMain.handle('config:save', async (_event, { projectPath, config }) => {
   try {
     const configPath = path.join(projectPath, CONFIG_FILENAME);
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
     return { success: true };
   } catch (error: any) {
-    console.error(`淇濆瓨閰嶇疆鏂囦欢澶辫触: ${projectPath}`, error);
+    console.error(`保存配置文件失败: ${projectPath}`, error);
     throw error;
   }
 });
@@ -463,4 +464,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-

@@ -2,6 +2,9 @@
 node_modules/
 dist/
 dist-electron/
+dist-renderer/
+dist-release/
+dist-release-2/
 
 # 日志
 *.log

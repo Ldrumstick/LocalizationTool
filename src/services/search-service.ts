@@ -1,8 +1,8 @@
-﻿import { ProjectData, SearchResponse, SearchResult } from '../types';
+import { ProjectData, SearchResponse, SearchResult } from '../types';
 
 /**
- * 鎼滅储鏈嶅姟 - 鍓嶇浠ｇ悊
- * 鎼滅储閫昏緫宸蹭笅娌夎嚦 Electron 涓昏繘绋?(Backend Search)
+ * 搜索服务 - 渲染进程代理层
+ * 实际搜索逻辑运行在 Electron 主进程
  */
 export const searchService = {
   streamSearchInProject(
@@ -63,9 +63,9 @@ export const searchService = {
       window.electronAPI.searchProjectStreamCancel(requestId);
     };
   },
+
   /**
-   * 鍦ㄩ」鐩腑鎼滅储鍏抽敭璇?(Async)
-   * 璋冪敤 Electron 涓昏繘绋嬫墽琛屾悳绱紝浠ユ敮鎸佸叏椤圭洰鎵弿
+   * 在当前项目中搜索关键词（异步）
    */
   async searchInProject(
     projectData: ProjectData,
@@ -83,10 +83,10 @@ export const searchService = {
         isGlobalSearch: options.isGlobalSearch,
         selectedFileId: options.selectedFileId,
         maxResults: options.maxResults,
-        ignoredFileIds: projectData.ignoredFileIds || [] // Pass ignored files
+        ignoredFileIds: projectData.ignoredFileIds || []
       });
 
-      // Backward compatible with older main-process return shape.
+      // 兼容旧版主进程返回格式
       if (Array.isArray(response)) {
         return { results: response as SearchResult[], hasMore: false };
       }
@@ -96,14 +96,13 @@ export const searchService = {
         hasMore: Boolean(response?.hasMore)
       };
     } catch (error) {
-      console.error('鎼滅储鏈嶅姟璋冪敤澶辫触:', error);
+      console.error('搜索服务调用失败:', error);
       return { results: [], hasMore: false };
     }
   },
 
   /**
-   * 鎵ц鏇挎崲閫昏緫锛堝崟鏉★級
-   * 绾枃鏈鐞嗭紝淇濇寔鍚屾浠ヤ究蹇€熷搷搴?UI
+   * 执行单条文本替换
    */
   replace(
     originalText: string,
@@ -116,11 +115,10 @@ export const searchService = {
       const flags = isCaseSensitive ? 'g' : 'gi';
       const pattern = isRegExp ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(pattern, flags);
-      
+
       return originalText.replace(regex, replacement);
     } catch (e) {
       return originalText;
     }
   }
 };
-
