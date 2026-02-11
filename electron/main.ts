@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import iconv from 'iconv-lite';
 import { setupWatcher, stopWatcher, updateLastSaveTime } from './watcher';
-import { scanCSVFiles, readFileAndDecode } from './file-utils';
+import { scanCSVFiles, readFileAndDecode, resolveFilePathFromId } from './file-utils';
 import { checkForUpdates, initializeUpdateService } from './update-service';
 
 let mainWindow: BrowserWindow | null = null;
@@ -225,7 +225,7 @@ async function executeProjectSearch(
       .filter((f: any) => !ignoredSet.has(f.id))
       .map((f: any) => ({ path: f.filePath, id: f.id }));
   } else if (selectedFileId) {
-    const filePath = Buffer.from(selectedFileId, 'base64').toString();
+    const filePath = resolveFilePathFromId(projectPath, selectedFileId);
     filesToSearch = [{ path: filePath, id: selectedFileId }];
   }
 

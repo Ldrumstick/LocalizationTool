@@ -8,6 +8,71 @@ import { configService } from './config-service';
  * 封装与 Electron 主进程的 IPC 通信
  */
 export const fileService = {
+  normalizeConfigIds(
+    files: any[],
+    config: { ignoredFileIds?: string[]; groups?: Record<string, any> }
+  ): { ignoredFileIds: string[]; groups: Record<string, any> } {
+    const filePathToNewId = new Map<string, string>();
+    const fileNameToIds = new Map<string, string[]>();
+
+    files.forEach((file) => {
+      filePathToNewId.set(file.filePath, file.id);
+      if (!fileNameToIds.has(file.fileName)) fileNameToIds.set(file.fileName, []);
+      fileNameToIds.get(file.fileName)!.push(file.id);
+    });
+
+    const resolveId = (rawId: string): string | null => {
+      if (!rawId) return null;
+      if (filePathToNewId.has(rawId)) return filePathToNewId.get(rawId)!;
+      if (Object.values(files).some((f: any) => f.id === rawId)) return rawId;
+
+      try {
+        const decoded = Buffer.from(rawId, 'base64').toString();
+        // 兼容旧配置：ID=绝对路径 base64
+        if (filePathToNewId.has(decoded)) {
+          return filePathToNewId.get(decoded)!;
+        }
+        // 兼容新配置：ID=相对路径 base64
+        const normalizedDecoded = decoded.replace(/\\/g, '/');
+        const matched = files.find((f: any) => {
+          const rel = f.relativePath ? String(f.relativePath).replace(/\\/g, '/') : '';
+          return rel === normalizedDecoded;
+        });
+        if (matched) return matched.id;
+
+        // 兜底：按文件名匹配（仅当唯一）
+        const fileName = normalizedDecoded.split('/').pop() || '';
+        const ids = fileNameToIds.get(fileName) || [];
+        if (ids.length === 1) return ids[0];
+      } catch (e) {
+        // ignore malformed base64
+      }
+      return null;
+    };
+
+    const ignoredSet = new Set<string>();
+    (config.ignoredFileIds || []).forEach((id) => {
+      const resolved = resolveId(id);
+      if (resolved) ignoredSet.add(resolved);
+    });
+
+    const groups: Record<string, any> = {};
+    Object.entries(config.groups || {}).forEach(([groupId, group]) => {
+      const normalizedFileIds = Array.from(new Set((group.fileIds || [])
+        .map((id: string) => resolveId(id))
+        .filter(Boolean))) as string[];
+      groups[groupId] = {
+        ...group,
+        fileIds: normalizedFileIds,
+      };
+    });
+
+    return {
+      ignoredFileIds: Array.from(ignoredSet),
+      groups,
+    };
+  },
+
   /**
    * 打开项目文件夹并获取 CSV 文件列表
    */
@@ -37,8 +102,9 @@ export const fileService = {
         
         // 1. Load Config first (Groups & Ignored Files)
         const config = await configService.loadConfig(projectPath);
-        projectStore.setIgnoredFileIds(config.ignoredFileIds);
-        projectStore.setGroups(config.groups);
+        const normalizedConfig = this.normalizeConfigIds(files, config);
+        projectStore.setIgnoredFileIds(normalizedConfig.ignoredFileIds);
+        projectStore.setGroups(normalizedConfig.groups);
 
         // 2. Set Files (will use ignoredFileIds to set isIgnored flag)
         projectStore.setFiles(filesMap);

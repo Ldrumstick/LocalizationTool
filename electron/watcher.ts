@@ -3,7 +3,7 @@ const chokidar = eval('require')('chokidar') as typeof Chokidar;
 import path from 'path';
 import fs from 'fs/promises';
 import { BrowserWindow } from 'electron';
-import { readFileAndDecode } from './file-utils';
+import { buildFileId, readFileAndDecode } from './file-utils';
 
 let watcher: Chokidar.FSWatcher | null = null;
 let lastSaveMap: Map<string, number> = new Map();
@@ -59,8 +59,8 @@ export function setupWatcher(mainWindow: BrowserWindow, projectPath: string) {
                 const stats = await fs.stat(filePath);
                 const fileData = await readFileAndDecode(filePath);
                 
-                // Construct ID (same as scanCSVFiles)
-                const id = Buffer.from(filePath).toString('base64');
+                // Use stable file ID based on project-relative path
+                const id = buildFileId(projectPath, filePath);
 
                 mainWindow.webContents.send('file:external-change', {
                     fileId: id,

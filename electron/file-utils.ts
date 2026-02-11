@@ -4,6 +4,22 @@ import chardet from 'chardet';
 import iconv from 'iconv-lite';
 import Papa from 'papaparse';
 
+function normalizeRelativePath(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/');
+}
+
+export function buildFileId(projectPath: string, filePath: string): string {
+  const relativePath = normalizeRelativePath(path.relative(projectPath, filePath));
+  return Buffer.from(relativePath).toString('base64');
+}
+
+export function resolveFilePathFromId(projectPath: string, fileId: string): string {
+  const decoded = Buffer.from(fileId, 'base64').toString();
+  // 兼容旧版：旧 ID 直接编码了绝对路径
+  if (path.isAbsolute(decoded)) return decoded;
+  return path.join(projectPath, decoded);
+}
+
 // 辅助函数：扫描目录下的所有 CSV 文件
 export async function scanCSVFiles(dir: string): Promise<any[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -13,10 +29,12 @@ export async function scanCSVFiles(dir: string): Promise<any[]> {
     const fullPath = path.join(dir, entry.name);
     if (entry.isFile() && entry.name.toLowerCase().endsWith('.csv')) {
       const stats = await fs.stat(fullPath);
+      const relativePath = normalizeRelativePath(path.relative(dir, fullPath));
       csvFiles.push({
-        id: Buffer.from(fullPath).toString('base64'), // 简单使用路径 base64 作为 ID
+        id: buildFileId(dir, fullPath),
         fileName: entry.name,
         filePath: fullPath,
+        relativePath,
         lastModified: stats.mtimeMs,
       });
     }
