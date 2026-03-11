@@ -1,8 +1,8 @@
-import fs from 'fs/promises';
-import path from 'path';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import chardet from 'chardet';
-import iconv from 'iconv-lite';
-import Papa from 'papaparse';
+import * as iconv from 'iconv-lite';
+import * as Papa from 'papaparse';
 
 function normalizeRelativePath(relativePath: string): string {
   return relativePath.replace(/\\/g, '/');
@@ -46,10 +46,10 @@ export async function scanCSVFiles(dir: string): Promise<any[]> {
 // 辅助函数：读取并解码文件
 export async function readFileAndDecode(filePath: string) {
   const buffer = await fs.readFile(filePath);
-  
+
   // 1. 检测编码
   const encoding = chardet.detect(buffer) || 'UTF-8';
-  
+
   // 2. 转换内容
   let content = '';
   if (encoding === 'UTF-8') {
@@ -59,9 +59,22 @@ export async function readFileAndDecode(filePath: string) {
   }
 
   // 3. 解析 CSV
-  const parseResult = Papa.parse(content, {
+  let parseResult = Papa.parse<string[]>(content, {
     skipEmptyLines: true,
   });
+
+  // 兼容外部来源使用 LF/CR 换行符的场景，首次解析报错时自动回退。
+  if (parseResult.errors.length > 0) {
+    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const retryResult = Papa.parse<string[]>(normalizedContent, {
+      skipEmptyLines: true,
+      newline: '\n',
+    });
+
+    if (retryResult.errors.length < parseResult.errors.length) {
+      parseResult = retryResult;
+    }
+  }
 
   return {
     encoding,
