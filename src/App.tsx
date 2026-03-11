@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHistoryStore } from './stores/history-store';
 import FileList from './components/FileList/FileList';
 import Editor from './components/Editor/Editor';
@@ -12,6 +12,7 @@ import './App.css';
 
 function App() {
     useAutoSave(30000);
+    const hasRestoredProjectRef = useRef(false);
 
     const [updateModalOpen, setUpdateModalOpen] = useState(false);
     const [updateState, setUpdateState] = useState<UpdateState>({
@@ -23,6 +24,14 @@ function App() {
         isIgnored: false,
         error: null,
     });
+
+    useEffect(() => {
+        if (hasRestoredProjectRef.current) {
+            return;
+        }
+        hasRestoredProjectRef.current = true;
+        void fileService.reopenLastProject();
+    }, []);
 
     useEffect(() => {
         window.electronAPI.onSaveTrigger(async () => {

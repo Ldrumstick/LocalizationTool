@@ -1,5 +1,6 @@
 import { CSVFileData } from '../types';
 import { useProjectStore } from '../stores/project-store';
+import { useEditorStore } from '../stores/editor-store';
 import Papa from 'papaparse';
 import { configService } from './config-service';
 
@@ -73,54 +74,109 @@ export const fileService = {
     };
   },
 
+  async restoreLastOpenedFile(
+    filesMap: Record<string, CSVFileData>,
+    preferredFileId?: string
+  ): Promise<void> {
+    const projectStore = useProjectStore.getState();
+    const editorStore = useEditorStore.getState();
+    const targetFileId = preferredFileId && filesMap[preferredFileId] ? preferredFileId : undefined;
+
+    editorStore.setSelectedFile(targetFileId);
+    projectStore.setLastOpenedFile(targetFileId);
+
+    if (!targetFileId) {
+      return;
+    }
+
+    try {
+      await this.readFile(targetFileId);
+    } catch (error) {
+      console.error('恢复上次打开文件失败:', error);
+      editorStore.setSelectedFile(undefined);
+      projectStore.setLastOpenedFile(undefined);
+    }
+  },
+
   /**
    * 打开项目文件夹并获取 CSV 文件列表
    */
-  async openProject(): Promise<void> {
+  async openProject(projectPath = ''): Promise<boolean> {
     const projectStore = useProjectStore.getState();
+    const requestedProjectPath = projectPath.trim();
     
     try {
-      const result = await window.electronAPI.openProject('');
+      const result = await window.electronAPI.openProject(requestedProjectPath || undefined);
       
-      if (result) {
-        const { projectPath, files } = result;
-        
-        // 将文件数组转换为 Record 结构
-        const filesMap: Record<string, CSVFileData> = {};
-        files.forEach((file: any) => {
-          filesMap[file.id] = {
-            ...file,
-            encoding: 'UTF-8', // 初始默认
-            headers: [],
-            rows: [],
-            isDirty: false,
-            isIgnored: false,
-          };
+      if (!result) {
+        if (requestedProjectPath) {
+          useProjectStore.getState().resetProject();
+          useEditorStore.getState().resetUI();
+        }
+        return false;
+      }
+
+      const { projectPath: openedProjectPath, files } = result;
+      const rememberedFileId = projectStore.lastOpenedFileId;
+      
+      // 将文件数组转换为 Record 结构
+      const filesMap: Record<string, CSVFileData> = {};
+      files.forEach((file: any) => {
+        filesMap[file.id] = {
+          ...file,
+          encoding: 'UTF-8', // 初始默认
+          headers: [],
+          rows: [],
+          isDirty: false,
+          isIgnored: false,
+        };
+      });
+
+      projectStore.setProjectPath(openedProjectPath);
+      
+      // 1. Load Config first (Groups & Ignored Files)
+      const config = await configService.loadConfig(openedProjectPath);
+      const normalizedConfig = this.normalizeConfigIds(files, config);
+      projectStore.setIgnoredFileIds(normalizedConfig.ignoredFileIds);
+      projectStore.setGroups(normalizedConfig.groups);
+
+      // 2. Set Files (will use ignoredFileIds to set isIgnored flag)
+      projectStore.setFiles(filesMap);
+      projectStore.setKeyIndex({});
+
+      await this.restoreLastOpenedFile(filesMap, rememberedFileId);
+
+      // 异步构建 Key Index
+      window.electronAPI.buildProjectIndex(openedProjectPath)
+        .then(index => {
+          projectStore.setKeyIndex(index);
+        })
+        .catch(err => {
+          console.error('索引构建失败:', err);
         });
 
-        projectStore.setProjectPath(projectPath);
-        
-        // 1. Load Config first (Groups & Ignored Files)
-        const config = await configService.loadConfig(projectPath);
-        const normalizedConfig = this.normalizeConfigIds(files, config);
-        projectStore.setIgnoredFileIds(normalizedConfig.ignoredFileIds);
-        projectStore.setGroups(normalizedConfig.groups);
-
-        // 2. Set Files (will use ignoredFileIds to set isIgnored flag)
-        projectStore.setFiles(filesMap);
-
-        // 异步构建 Key Index
-        window.electronAPI.buildProjectIndex(projectPath)
-          .then(index => {
-            projectStore.setKeyIndex(index);
-          })
-          .catch(err => {
-            console.error('索引构建失败:', err);
-          });
-      }
+      return true;
     } catch (error) {
       console.error('打开项目失败:', error);
+      if (requestedProjectPath) {
+        useProjectStore.getState().resetProject();
+        useEditorStore.getState().resetUI();
+      }
       throw error;
+    }
+  },
+
+  async reopenLastProject(): Promise<boolean> {
+    const lastProjectPath = useProjectStore.getState().projectPath;
+    if (!lastProjectPath) {
+      return false;
+    }
+
+    try {
+      return await this.openProject(lastProjectPath);
+    } catch (error) {
+      console.error('恢复上次项目失败:', error);
+      return false;
     }
   },
 

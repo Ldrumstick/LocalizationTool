@@ -23,7 +23,7 @@ interface ProjectState extends ProjectData {
   removeFileFromGroup: (groupId: string, fileId: string) => void;
   setIgnoredFileIds: (ids: string[]) => void;
 
-  setLastOpenedFile: (fileId: string) => void;
+  setLastOpenedFile: (fileId?: string) => void;
   resetProject: () => void;
   
   // Indexing Actions
@@ -344,6 +344,7 @@ export const useProjectStore = create<ProjectState>()(
           ignoredFileIds: [],
           groups: {},
           lastOpenedFileId: undefined,
+          keyIndex: undefined,
         }),
 
       // Batch Actions Implementation

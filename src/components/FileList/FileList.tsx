@@ -6,6 +6,7 @@ import './FileList.css';
 
 const FileList: React.FC = () => {
   const files = useProjectStore((state) => state.files);
+  const setLastOpenedFile = useProjectStore((state) => state.setLastOpenedFile);
   const toggleIgnoreFile = useProjectStore((state) => state.toggleIgnoreFile);
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const setSelectedFile = useEditorStore((state) => state.setSelectedFile);
@@ -72,6 +73,7 @@ const FileList: React.FC = () => {
     }
     
     setSelectedFile(fileId);
+    setLastOpenedFile(fileId);
     
     const file = files[fileId];
     if (file && (!file.rows || file.rows.length === 0)) {

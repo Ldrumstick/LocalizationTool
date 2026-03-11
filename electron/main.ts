@@ -111,16 +111,33 @@ function createWindow() {
 // 辅助函数已移动到 file-utils.ts
 
 // IPC：打开项目
-ipcMain.handle('project:open', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    properties: ['openDirectory'],
-  });
+ipcMain.handle('project:open', async (_event, requestedPath?: string) => {
+  let projectPath = requestedPath?.trim() || '';
 
-  if (result.canceled || result.filePaths.length === 0) {
-    return null;
+  if (!projectPath) {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openDirectory'],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+
+    projectPath = result.filePaths[0];
+  } else {
+    try {
+      const stats = await fs.stat(projectPath);
+      if (!stats.isDirectory()) {
+        return null;
+      }
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 
-  const projectPath = result.filePaths[0];
   const files = await scanCSVFiles(projectPath);
 
   // 启动文件监听

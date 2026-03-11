@@ -20,7 +20,7 @@ type UpdateState = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    openProject: (path: string) => ipcRenderer.invoke('project:open', path),
+    openProject: (path?: string) => ipcRenderer.invoke('project:open', path),
 
     readFile: (fileId: string) => ipcRenderer.invoke('file:read', fileId),
     saveFile: (data: any) => ipcRenderer.invoke('file:save', data),
@@ -76,7 +76,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 export interface ElectronAPI {
-    openProject: (path: string) => Promise<any>;
+    openProject: (path?: string) => Promise<any>;
     readFile: (fileId: string) => Promise<any>;
     saveFile: (params: { filePath: string; content: string; encoding: string }) => Promise<{ success: boolean; error?: string; lastModified?: number }>;
     onFileChange: (callback: (data: any) => void) => void;
