@@ -122,5 +122,25 @@ describe('Stores Unit Tests', () => {
       expect(useEditorStore.getState().currentResultIndex).toBe(5);
       expect(useEditorStore.getState().currentSearchResult).toEqual(currentResult);
     });
+
+    it('应该能够设置和清理颜色选择器弹窗状态', () => {
+      const onConfirm = jest.fn();
+
+      act(() => {
+        useEditorStore.getState().setColorPickerModal({
+          isOpen: true,
+          defaultColor: '#112233',
+          onConfirm
+        });
+      });
+
+      expect(useEditorStore.getState().colorPickerModal?.defaultColor).toBe('#112233');
+
+      act(() => {
+        useEditorStore.getState().resetUI();
+      });
+
+      expect(useEditorStore.getState().colorPickerModal).toBeNull();
+    });
   });
 });

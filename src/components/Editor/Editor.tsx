@@ -9,12 +9,15 @@ import RichtextEditor from './RichtextEditor';
 import EditorToolbar from './EditorToolbar';
 import EditorContextMenu from './EditorContextMenu';
 import EditorInputModal from './EditorInputModal';
+import EditorColorPickerModal from './EditorColorPickerModal';
 
 const Editor: React.FC = () => {
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const selectedCell = useEditorStore((state) => state.selectedCell);
   const inputModal = useEditorStore((state) => state.inputModal);
   const setInputModal = useEditorStore((state) => state.setInputModal);
+  const colorPickerModal = useEditorStore((state) => state.colorPickerModal);
+  const setColorPickerModal = useEditorStore((state) => state.setColorPickerModal);
   const projectFiles = useProjectStore((state) => state.files);
 
   const currentFile = selectedFileId ? projectFiles[selectedFileId] : null;
@@ -122,6 +125,17 @@ const Editor: React.FC = () => {
             setInputModal(null);
           }}
           onCancel={() => setInputModal(null)}
+        />
+      )}
+      {colorPickerModal && (
+        <EditorColorPickerModal
+          isOpen={colorPickerModal.isOpen}
+          defaultColor={colorPickerModal.defaultColor}
+          onConfirm={(color) => {
+            colorPickerModal.onConfirm(color);
+            setColorPickerModal(null);
+          }}
+          onCancel={() => setColorPickerModal(null)}
         />
       )}
     </div>

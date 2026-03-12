@@ -1,14 +1,14 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { useEditorStore } from '../../stores/editor-store';
 import { toggleTag, setTagValue } from '../../codemirror/tmp-commands';
+import { DEFAULT_COLOR_PICKER_HEX } from '../../utils/color-picker';
 import './EditorToolbar.css';
 
 const EditorToolbar: React.FC = () => {
     const isEditing = useEditorStore(state => state.isEditing);
     const editorView = useEditorStore(state => state.editorView);
     const setInputModal = useEditorStore(state => state.setInputModal);
-
-    const colorInputRef = useRef<HTMLInputElement>(null);
+    const setColorPickerModal = useEditorStore(state => state.setColorPickerModal);
 
     const disabled = !isEditing || !editorView;
 
@@ -31,14 +31,13 @@ const EditorToolbar: React.FC = () => {
     const handleAllCaps = () => runCommand(v => toggleTag(v, 'allcaps'));
 
     const handleColor = () => {
-        colorInputRef.current?.click();
-    };
-
-    const onColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const color = e.target.value;
-        if (color) {
-            runCommand(v => setTagValue(v, 'color', color));
-        }
+        setColorPickerModal({
+            isOpen: true,
+            defaultColor: DEFAULT_COLOR_PICKER_HEX,
+            onConfirm: (color) => {
+                runCommand(v => setTagValue(v, 'color', color));
+            }
+        });
     };
 
     const handleSize = () => {
@@ -84,12 +83,6 @@ const EditorToolbar: React.FC = () => {
 
             <div className="toolbar-group">
                 <button className="toolbar-btn" onClick={handleColor} disabled={disabled} title="Text Color">🎨</button>
-                <input 
-                    type="color" 
-                    ref={colorInputRef} 
-                    className="hidden-color-input" 
-                    onChange={onColorChange} 
-                />
                 <button className="toolbar-btn" onClick={handleSize} disabled={disabled} title="Font Size">T↕</button>
             </div>
 

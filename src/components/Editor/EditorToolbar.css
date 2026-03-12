@@ -84,16 +84,3 @@
 .btn-underline { text-decoration: underline; }
 .btn-strike { text-decoration: line-through; }
 
-/* Hidden Color Input */
-.hidden-color-input {
-    width: 0;
-    height: 0;
-    opacity: 0;
-    border: 0;
-    padding: 0;
-    position: absolute;
-    pointer-events: none;
-    /* Ensure it doesn't affect layout but browser knows where it is */
-    bottom: 0;
-    left: 50%; 
-}

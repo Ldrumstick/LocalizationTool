@@ -3,6 +3,12 @@ import { create } from 'zustand';
 import { SearchResult, UIState, ValidationError } from '../types';
 import { EditorView } from '@codemirror/view';
 
+type ColorPickerModalState = {
+  isOpen: boolean;
+  defaultColor: string;
+  onConfirm: (color: string) => void;
+} | null;
+
 interface EditorState extends UIState {
   // 新增：编辑状态
   isEditing: boolean;
@@ -19,6 +25,7 @@ interface EditorState extends UIState {
     defaultValue: string; 
     onConfirm: (val: string) => void;
   } | null;
+  colorPickerModal: ColorPickerModalState;
   
   // Search State
   searchQuery: string;
@@ -55,6 +62,7 @@ interface EditorState extends UIState {
   setEditorView: (view: EditorView | null) => void;
   setContextMenu: (menu: { visible: boolean; x: number; y: number } | null) => void;
   setInputModal: (modal: { isOpen: boolean; title: string; defaultValue: string; onConfirm: (val: string) => void } | null) => void;
+  setColorPickerModal: (modal: ColorPickerModalState) => void;
 
   // Search Actions
   setSearchQuery: (query: string) => void;
@@ -99,6 +107,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   editorView: null,
   contextMenu: null,
   inputModal: null,
+  colorPickerModal: null,
 
   searchQuery: '',
   replaceQuery: '',
@@ -315,6 +324,10 @@ export const useEditorStore = create<EditorState>((set) => ({
     state.inputModal = modal;
   })),
 
+  setColorPickerModal: (modal) => set(produce((state: EditorState) => {
+    state.colorPickerModal = modal;
+  })),
+
   resetUI: () => set({
     selectedFileId: undefined,
     selectedCell: undefined,
@@ -325,5 +338,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     currentSearchResult: undefined,
     currentResultIndex: -1,
     validationErrors: [],
+    inputModal: null,
+    colorPickerModal: null,
   }),
 }));
