@@ -941,6 +941,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
             return content;
         };
 
+        const displayTitle = isCurrentEditing && editingLocation !== 'cell'
+            ? tempValue
+            : content;
+
         return (
             <div
                 style={style}
@@ -948,7 +952,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                     } ${isFillPreview ? 'fill-preview' : ''} ${isToggleCol ? 'toggle-column' : ''}`}
                 onClick={handleClick}
                 onContextMenu={handleContextMenu}
-                title={content}
+                title={displayTitle}
             >
                 {renderContent()}
 
@@ -956,7 +960,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 {isBottomRight && <div className="fill-handle" onMouseDown={(e) => handleFillMouseDown(e, rowIndex, columnIndex)} />}
             </div>
         );
-    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentSearchResult, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, fillState, currentToggleCols]);
+    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentSearchResult, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, tempValue, fillState, currentToggleCols]);
 
     const handleRowContextMenu = (rowIndex: number, e: React.MouseEvent) => {
         e.preventDefault();
@@ -1353,7 +1357,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                                 rowHeight={() => rowHeight}
                                 width={gridWidth}
                                 onScroll={handleGridScroll}
-                                itemData={{}}
+                                itemData={{ previewValue: tempValue, editingLocation, isEditing }}
                             >
                                 {Cell}
                             </Grid>
@@ -1417,6 +1421,9 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         handleGridScroll, handleCopy, handlePaste,
         fillMenuState,
         Cell,
+        tempValue,
+        editingLocation,
+        isEditing,
         gridRef,
         performFill,
         headerHeight,
