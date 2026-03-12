@@ -26,6 +26,8 @@ describe('Stores Unit Tests', () => {
         fileName: 'test.csv',
         filePath: 'C:/test/test.csv',
         encoding: 'UTF-8',
+        hasBom: false,
+        lineEnding: 'CRLF',
         headers: ['Key', 'Value'],
         rows: [],
         isDirty: false,

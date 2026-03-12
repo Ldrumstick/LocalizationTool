@@ -70,6 +70,8 @@ function createFile(rowCount = 320): CSVFileData {
     fileName: 'common_text.csv',
     filePath: 'G:/LocalizationTool/common_text.csv',
     encoding: 'UTF-8',
+    hasBom: false,
+    lineEnding: 'CRLF',
     headers: ['ID', 'en'],
     rows: Array.from({ length: rowCount }, (_, rowIndex) => ({
       rowIndex,

@@ -10,11 +10,18 @@ export interface CSVRow {
 /**
  * CSV 文件数据接口
  */
-export interface CSVFileData {
+export type TextLineEnding = 'CRLF' | 'LF' | 'CR';
+
+export interface TextFileFormat {
+  encoding: string;
+  hasBom: boolean;
+  lineEnding: TextLineEnding;
+}
+
+export interface CSVFileData extends TextFileFormat {
   id: string;
   fileName: string;
   filePath: string;
-  encoding: string;
   headers: string[];
   rows: CSVRow[];
   isDirty: boolean; // 是否有未保存的修改

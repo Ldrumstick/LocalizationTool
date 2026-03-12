@@ -212,6 +212,40 @@
   font-size: 12px;
   font-weight: 600;
   color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-richtext-header-main {
+  min-width: 0;
+}
+
+.editor-richtext-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.editor-current-file-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #5f6368;
+}
+
+.editor-current-file-format {
+  padding: 3px 8px;
+  border: 1px solid #d2e3fc;
+  border-radius: 999px;
+  background-color: #e8f0fe;
+  color: #174ea6;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
 .richtext-editor-wrapper {

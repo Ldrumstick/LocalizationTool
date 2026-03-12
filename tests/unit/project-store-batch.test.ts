@@ -11,6 +11,8 @@ describe('Project Store Batch Actions', () => {
           fileName: 'test.csv',
           filePath: '/test.csv',
           encoding: 'utf-8',
+          hasBom: false,
+          lineEnding: 'CRLF',
           headers: ['A', 'B', 'C'],
           rows: [
             { rowIndex: 0, cells: ['r0c0', 'r0c1', 'r0c2'], key: 'r0c0' },

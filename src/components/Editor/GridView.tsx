@@ -5,6 +5,7 @@ import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
 import { CSVRow } from '../../types';
 import { generateFillData } from '../../utils/fill-logic';
+import { buildClipboardPastePlan, isMultiCellClipboard, parseClipboardGrid } from '../../utils/clipboard-grid';
 import { detectBooleanColumns, isBooleanValue, isTruthyValue, toggleBooleanValue } from '../../utils/toggle-column';
 import { calculateAutoFitWidth } from '../../utils/width-measurement';
 import { hasModKey, registerShortcut, runShortcutRules, ShortcutPriority } from '../../services/shortcut-service';
@@ -100,6 +101,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     const editingLocation = useEditorStore((state) => state.editingLocation);
     const tempValue = useEditorStore((state) => state.tempValue);
     const enterEditMode = useEditorStore((state) => state.enterEditMode);
+    const exitEditMode = useEditorStore((state) => state.exitEditMode);
     const setEditingLocation = useEditorStore((state) => state.setEditingLocation);
 
     // Column Widths
@@ -453,27 +455,32 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     }, [selectedFileId, selectedRange, selectedCell, isEditing]);
 
     const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-        if (isEditing) return;
-        e.preventDefault();
-
         if (!selectedFileId) return;
 
         try {
-            const text = await navigator.clipboard.readText();
+            const eventText = e.clipboardData?.getData('text/plain') || '';
+            const text = eventText || (!isEditing ? await navigator.clipboard.readText() : '');
             if (!text) return;
 
-            const rowsData = text.split(/\r?\n/).map(line => line.split('\t'));
+            const rowsData = parseClipboardGrid(text);
             if (rowsData.length === 0) return;
-            // Remove last empty line if generic split causes it (excel often adds newline at end)
-            if (rowsData.length > 1 && rowsData[rowsData.length - 1].length === 1 && rowsData[rowsData.length - 1][0] === '') {
-                rowsData.pop();
-            }
+
+            const target = e.target as HTMLElement | null;
+            const isInlineEditorTarget = Boolean(target?.closest('.inline-editor'));
+            const shouldUseGridPaste = !isEditing || (
+                editingLocation === 'cell' &&
+                isInlineEditorTarget &&
+                isMultiCellClipboard(rowsData)
+            );
+
+            if (!shouldUseGridPaste) return;
+
+            e.preventDefault();
 
             const projectState = useProjectStore.getState();
             const file = projectState.files[selectedFileId];
             if (!file) return;
 
-            // Determine start position
             let startRow = 0;
             let startCol = 0;
 
@@ -484,35 +491,57 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 startRow = selectedCell.row;
                 startCol = selectedCell.col;
             } else {
-                return; // No selection to paste into
+                return;
             }
 
-            // Expand if needed
-            const totalRowsNeeded = startRow + rowsData.length;
-            if (totalRowsNeeded > file.rows.length) {
-                projectState.insertRows(selectedFileId, file.rows.length, totalRowsNeeded - file.rows.length);
+            if (isEditing) {
+                exitEditMode(false);
             }
 
-            const updates: { row: number; col: number; value: string }[] = [];
-
-            rowsData.forEach((rowData, rIdx) => {
-                const targetRowIdx = startRow + rIdx;
-                rowData.forEach((cellData, cIdx) => {
-                    const targetColIdx = startCol + cIdx;
-                    if (targetColIdx < headers.length) {
-                         updates.push({ row: targetRowIdx, col: targetColIdx, value: cellData });
-                    }
-                });
+            const plan = buildClipboardPastePlan(rowsData, {
+                startRow,
+                startCol,
+                maxColumns: headers.length,
+                existingRowCount: file.rows.length
             });
 
-            if (updates.length > 0) {
-                projectState.batchUpdateCells(selectedFileId, updates, '粘贴');
+            if (plan.rowsToInsert > 0) {
+                projectState.insertRows(selectedFileId, file.rows.length, plan.rowsToInsert);
             }
 
+            if (plan.updates.length > 0) {
+                projectState.batchUpdateCells(selectedFileId, plan.updates, '粘贴');
+            }
+
+            if (plan.bounds) {
+                setSelectedCell(plan.bounds.startRow, plan.bounds.startCol);
+
+                if (
+                    plan.bounds.startRow !== plan.bounds.endRow ||
+                    plan.bounds.startCol !== plan.bounds.endCol
+                ) {
+                    setSelectedRange(
+                        { row: plan.bounds.startRow, col: plan.bounds.startCol },
+                        { row: plan.bounds.endRow, col: plan.bounds.endCol }
+                    );
+                } else {
+                    setSelectedRange(undefined);
+                }
+            }
         } catch (err) {
             console.error('Failed to paste', err);
         }
-    }, [selectedFileId, selectedRange, selectedCell, isEditing, headers.length]);
+    }, [
+        selectedFileId,
+        selectedRange,
+        selectedCell,
+        isEditing,
+        editingLocation,
+        exitEditMode,
+        headers.length,
+        setSelectedCell,
+        setSelectedRange
+    ]);
 
     // 全局键盘监听（处理直接输入和 F2）
     useEffect(() => {

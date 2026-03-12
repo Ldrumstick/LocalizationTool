@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { TextFileFormat } from '../src/types';
 
 type UpdateStatus =
     | 'idle'
@@ -78,7 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 export interface ElectronAPI {
     openProject: (path?: string) => Promise<any>;
     readFile: (fileId: string) => Promise<any>;
-    saveFile: (params: { filePath: string; content: string; encoding: string }) => Promise<{ success: boolean; error?: string; lastModified?: number }>;
+    saveFile: (params: { filePath: string; content: string; format: TextFileFormat }) => Promise<{ success: boolean; error?: string; lastModified?: number }>;
     onFileChange: (callback: (data: any) => void) => void;
     removeFileChangeListener: () => void;
     searchProject: (params: any) => Promise<any>;

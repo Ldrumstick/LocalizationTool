@@ -189,6 +189,8 @@ interface ReadFileResult {
   success: boolean;
   fileId: string;
   encoding: string;
+  hasBom: boolean;
+  lineEnding: 'CRLF' | 'LF' | 'CR';
   headers: string[];      // 表头
   rows: CSVRow[];         // 数据行
   error?: string;
@@ -224,7 +226,11 @@ interface SaveFileParams {
   fileId: string;
   filePath: string;
   content: string;        // 已序列化为 CSV 格式的字符串
-  encoding: string;       // 目标编码 (保持原文件编码)
+  format: {
+    encoding: string;     // 目标编码（保持原文件编码）
+    hasBom: boolean;      // 是否保留 BOM
+    lineEnding: 'CRLF' | 'LF' | 'CR'; // 原始换行风格
+  };
 }
 
 interface SaveFileResult {

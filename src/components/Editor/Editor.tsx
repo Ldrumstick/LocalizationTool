@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { useProjectStore } from '../../stores/project-store';
 
 import { useEditorStore } from '../../stores/editor-store';
+import { formatTextFileFormatLabel } from '../../utils/text-file-format';
 import './Editor.css';
 import GridView from './GridView';
 import RichtextEditor from './RichtextEditor';
@@ -17,6 +18,9 @@ const Editor: React.FC = () => {
   const projectFiles = useProjectStore((state) => state.files);
 
   const currentFile = selectedFileId ? projectFiles[selectedFileId] : null;
+  const currentFileFormatLabel = currentFile
+    ? formatTextFileFormatLabel(currentFile)
+    : '';
 
   // 编辑栏高度状态 (像素)
   const [editorHeight, setEditorHeight] = useState(220);
@@ -79,10 +83,22 @@ const Editor: React.FC = () => {
 
       <div className="editor-richtext" style={{ height: editorHeight }}>
         <div className="editor-richtext-header">
-          {selectedCell && currentFile
-            ? `${currentFile.headers[selectedCell.col] || `Col ${selectedCell.col + 1}`} [Row: ${selectedCell.row + 1}, Col: ${selectedCell.col + 1}]`
-            : '富文本编辑器'
-          }
+          <div className="editor-richtext-header-main">
+            {selectedCell && currentFile
+              ? `${currentFile.headers[selectedCell.col] || `Col ${selectedCell.col + 1}`} [Row: ${selectedCell.row + 1}, Col: ${selectedCell.col + 1}]`
+              : '富文本编辑器'
+            }
+          </div>
+          {currentFile && (
+            <div className="editor-richtext-header-meta">
+              <span className="editor-current-file-name" title={currentFile.fileName}>
+                {currentFile.fileName}
+              </span>
+              <span className="editor-current-file-format" title={`当前文本格式：${currentFileFormatLabel}`}>
+                {currentFileFormatLabel}
+              </span>
+            </div>
+          )}
         </div>
         <div className="richtext-editor-wrapper">
           <EditorToolbar />

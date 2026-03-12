@@ -1,9 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
-import iconv from 'iconv-lite';
 import { setupWatcher, stopWatcher, updateLastSaveTime } from './watcher';
-import { scanCSVFiles, readFileAndDecode, resolveFilePathFromId } from './file-utils';
+import { encodeContentWithFormat, scanCSVFiles, readFileAndDecode, resolveFilePathFromId } from './file-utils';
 import { checkForUpdates, initializeUpdateService } from './update-service';
 
 let mainWindow: BrowserWindow | null = null;
@@ -408,10 +407,14 @@ ipcMain.handle('project:build-index', async (_event, projectPath: string) => {
 const CONFIG_FILENAME = '.localization.config.json';
 
 // IPC：保存文件
-ipcMain.handle('file:save', async (_event, { filePath, content, encoding }) => {
+ipcMain.handle('file:save', async (_event, { filePath, content, format }) => {
   try {
-    // 1. 编码转换（默认 UTF-8）
-    const buffer = iconv.encode(content, encoding || 'UTF-8');
+    // 1. 按读取时分析出的原始文本格式重新编码
+    const buffer = encodeContentWithFormat(content, {
+      encoding: format?.encoding || 'UTF-8',
+      hasBom: Boolean(format?.hasBom),
+      lineEnding: format?.lineEnding || 'CRLF'
+    });
 
     // 2. 写入文件
     await fs.writeFile(filePath, buffer);

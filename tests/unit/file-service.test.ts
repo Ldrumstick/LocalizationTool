@@ -6,7 +6,10 @@ import { useProjectStore } from '../../src/stores/project-store';
 jest.mock('papaparse', () => ({
   __esModule: true,
   default: {
-    unparse: (data: string[][]) => data.map((row) => row.join(',')).join('\r\n')
+    unparse: (data: string[][], options?: { newline?: string }) => {
+      const newline = options?.newline ?? '\r\n';
+      return data.map((row) => row.join(',')).join(newline);
+    }
   }
 }));
 
@@ -49,6 +52,8 @@ describe('file-service project restore', () => {
     });
     window.electronAPI.readFile.mockResolvedValue({
       encoding: 'UTF-8',
+      hasBom: false,
+      lineEnding: 'CRLF',
       headers: ['Key', 'Value'],
       rows: [{ rowIndex: 0, cells: ['HELLO', 'World'], key: 'HELLO' }],
     });
@@ -125,6 +130,8 @@ describe('file-service project restore', () => {
           fileName: 'dialog.csv',
           filePath: 'G:/demo/dialog.csv',
           encoding: 'UTF-8',
+          hasBom: true,
+          lineEnding: 'LF',
           headers: ['Key', 'Value'],
           rows: [{ rowIndex: 0, cells: ['HELLO', 'World'], key: 'HELLO' }],
           isDirty: false,
@@ -154,8 +161,16 @@ describe('file-service project restore', () => {
       await fileService.saveAllDirtyFiles({ flushActiveEdit: true });
     });
 
+    const savedContent = window.electronAPI.saveFile.mock.calls[0][0].content;
     expect(window.electronAPI.saveFile).toHaveBeenCalledTimes(1);
-    expect(window.electronAPI.saveFile.mock.calls[0][0].content).toContain('Edited World');
+    expect(savedContent).toContain('Edited World');
+    expect(savedContent).toContain('\n');
+    expect(savedContent).not.toContain('\r\n');
+    expect(window.electronAPI.saveFile.mock.calls[0][0].format).toEqual({
+      encoding: 'UTF-8',
+      hasBom: true,
+      lineEnding: 'LF'
+    });
     expect(useProjectStore.getState().files['file-1'].rows[0].cells[1]).toBe('Edited World');
     expect(useProjectStore.getState().files['file-1'].isDirty).toBe(false);
     expect(useEditorStore.getState().isEditing).toBe(true);

@@ -4,6 +4,7 @@ import { useEditorStore } from '../stores/editor-store';
 import Papa from 'papaparse';
 import { configService } from './config-service';
 import { commitActiveEdit } from './edit-session-service';
+import { DEFAULT_TEXT_ENCODING, DEFAULT_TEXT_LINE_ENDING, getLineEndingChars } from '../utils/text-file-format';
 
 /**
  * 文件管理服务
@@ -125,7 +126,9 @@ export const fileService = {
       files.forEach((file: any) => {
         filesMap[file.id] = {
           ...file,
-          encoding: 'UTF-8', // 初始默认
+          encoding: DEFAULT_TEXT_ENCODING, // 初始默认
+          hasBom: false,
+          lineEnding: DEFAULT_TEXT_LINE_ENDING,
           headers: [],
           rows: [],
           isDirty: false,
@@ -196,6 +199,8 @@ export const fileService = {
       if (result) {
         projectStore.updateFile(fileId, {
           encoding: result.encoding,
+          hasBom: result.hasBom ?? false,
+          lineEnding: result.lineEnding ?? DEFAULT_TEXT_LINE_ENDING,
           headers: result.headers,
           rows: result.rows,
           isDirty: false,
@@ -219,24 +224,29 @@ export const fileService = {
     try {
       // 构造 CSV 数据 (Header + Rows)
       const data = [file.headers, ...file.rows.map(row => row.cells)];
+      const newline = getLineEndingChars(file.lineEnding || DEFAULT_TEXT_LINE_ENDING);
       
       // 生成 CSV 字符串
       let csvContent = Papa.unparse(data, {
         quotes: false, // 仅在必要时添加引号 (Smart Quoting)
         quoteChar: '"',
-        newline: '\r\n', // RFC 4180 style record separator
+        newline,
       });
 
       // Ensure a trailing line break so external append tools start on a new record.
-      if (csvContent.length > 0 && !csvContent.endsWith('\r\n')) {
-        csvContent += '\r\n';
+      if (csvContent.length > 0 && !csvContent.endsWith(newline)) {
+        csvContent += newline;
       }
 
       // 调用 Electron 保存
       const result = await window.electronAPI.saveFile({
         filePath: file.filePath,
         content: csvContent,
-        encoding: file.encoding || 'UTF-8',
+        format: {
+          encoding: file.encoding || DEFAULT_TEXT_ENCODING,
+          hasBom: file.hasBom ?? false,
+          lineEnding: file.lineEnding || DEFAULT_TEXT_LINE_ENDING
+        }
       });
 
       if (result.success) {

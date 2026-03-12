@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { readFileAndDecode } from '../../electron/file-utils';
+import { encodeContentWithFormat, readFileAndDecode } from '../../electron/file-utils';
 
 describe('readFileAndDecode newline compatibility', () => {
   let tempDir = '';
@@ -23,6 +23,9 @@ describe('readFileAndDecode newline compatibility', () => {
 
     const result = await readFileAndDecode(filePath);
 
+    expect(result.encoding).toBe('UTF-8');
+    expect(result.hasBom).toBe(false);
+    expect(result.lineEnding).toBe('LF');
     expect(result.headers).toEqual(['Key', 'Value']);
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0].cells).toEqual(['HELLO', 'World']);
@@ -36,9 +39,33 @@ describe('readFileAndDecode newline compatibility', () => {
 
     const result = await readFileAndDecode(filePath);
 
+    expect(result.encoding).toBe('UTF-8');
+    expect(result.hasBom).toBe(false);
+    expect(result.lineEnding).toBe('CR');
     expect(result.headers).toEqual(['Key', 'Value']);
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0].cells).toEqual(['HELLO', 'World']);
     expect(result.rows[1].cells).toEqual(['BYE', 'Done']);
+  });
+
+  it('should detect UTF-8 BOM and preserve it when re-encoding', async () => {
+    const filePath = path.join(tempDir, 'utf8-bom.csv');
+    const content = Buffer.concat([
+      Buffer.from([0xEF, 0xBB, 0xBF]),
+      Buffer.from('Key,Value\r\nHELLO,World\r\n', 'utf8')
+    ]);
+    await fs.writeFile(filePath, content);
+
+    const result = await readFileAndDecode(filePath);
+    const encoded = encodeContentWithFormat('Key,Value\r\nHELLO,World\r\n', {
+      encoding: result.encoding,
+      hasBom: result.hasBom,
+      lineEnding: result.lineEnding
+    });
+
+    expect(result.encoding).toBe('UTF-8');
+    expect(result.hasBom).toBe(true);
+    expect(result.lineEnding).toBe('CRLF');
+    expect(Array.from(encoded.subarray(0, 3))).toEqual([0xEF, 0xBB, 0xBF]);
   });
 });

@@ -10,6 +10,8 @@ function seedFile() {
       fileName: 'common_text.csv',
       filePath: 'G:/LocalizationTool/common_text.csv',
       encoding: 'UTF-8',
+      hasBom: false,
+      lineEnding: 'CRLF',
       headers: ['ID', 'en'],
       rows: [
         { rowIndex: 0, cells: ['KEY_0', 'item 0'], key: 'KEY_0' }

@@ -27,6 +27,8 @@ function createFile(id: string, rows: CSVFileData['rows']): CSVFileData {
     fileName: `${id}.csv`,
     filePath: `G:/${id}.csv`,
     encoding: 'UTF-8',
+    hasBom: false,
+    lineEnding: 'CRLF',
     headers: ['id', 'value'],
     rows,
     isDirty: false,

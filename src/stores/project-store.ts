@@ -672,6 +672,9 @@ export const useProjectStore = create<ProjectState>()(
             if (state.files[fileId]) {
               state.files[fileId] = {
                 ...state.files[fileId],
+                encoding: fileData.encoding || state.files[fileId].encoding,
+                hasBom: fileData.hasBom ?? state.files[fileId].hasBom,
+                lineEnding: fileData.lineEnding || state.files[fileId].lineEnding,
                 headers: fileData.headers,
                 rows: fileData.rows,
                 isDirty: false,
