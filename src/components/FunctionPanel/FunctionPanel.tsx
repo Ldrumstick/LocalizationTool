@@ -1,91 +1,34 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import useMeasure from 'react-use-measure';
-import { FixedSizeList, ListChildComponentProps } from 'react-window';
+import { FixedSizeList, ListChildComponentProps, ListOnScrollProps } from 'react-window';
 import { useProjectStore } from '../../stores/project-store';
 import { useEditorStore } from '../../stores/editor-store';
 import { searchService } from '../../services/search-service';
 import { fileService } from '../../services/file-service';
+import { commitActiveEdit } from '../../services/edit-session-service';
 import { validatorService } from '../../services/validator-service';
-import { CSVFileData, SearchResult, ValidationError } from '../../types';
+import { SearchResult, ValidationError } from '../../types';
 import { useDebounce } from '../../hooks/useDebounce';
 import { hasModKey, isEditableTarget, registerShortcut, runShortcutRules, ShortcutPriority } from '../../services/shortcut-service';
+import {
+  buildSearchDataDependencyKey,
+  buildLocalSearchResults,
+  buildVirtualSearchRows,
+  captureSearchListViewport,
+  getSearchResultColumnLabel,
+  getSearchResultDisplayRowNumber,
+  getSearchResultKey,
+  groupSearchResults,
+  resolveSearchListViewport,
+  SearchResultLiveOverride,
+  SearchListViewportSnapshot,
+  VirtualSearchRow
+} from './search-panel-utils';
 import './FunctionPanel.css';
-
-type GroupedSearchItem = {
-  result: SearchResult;
-  index: number;
-};
-
-type GroupedSearchResult = {
-  fileId: string;
-  items: GroupedSearchItem[];
-};
-
-type VirtualSearchRow =
-  | { type: 'group'; key: string; fileId: string; count: number }
-  | { type: 'match'; key: string; item: GroupedSearchItem };
 
 const RESULT_ROW_HEIGHT = 34;
 const VIRTUAL_PAGE_SIZE = 200;
 const VIRTUAL_PAGE_CACHE_LIMIT = 24;
-
-function buildLocalSearchResults(
-  files: CSVFileData[],
-  query: string,
-  options: { isRegExp: boolean; isCaseSensitive: boolean }
-): SearchResult[] {
-  if (!query) return [];
-
-  let regex: RegExp | null = null;
-  let searchTerms: string[] = [];
-  const flags = options.isCaseSensitive ? 'g' : 'gi';
-
-  try {
-    if (options.isRegExp) {
-      regex = new RegExp(query, flags);
-    } else {
-      const trimmed = query.trim();
-      if (trimmed.includes(' ')) {
-        searchTerms = trimmed.split(/\s+/).filter((t) => t.length > 0);
-      } else {
-        const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        regex = new RegExp(pattern, flags);
-      }
-    }
-  } catch {
-    return [];
-  }
-
-  const results: SearchResult[] = [];
-  files.forEach((file) => {
-    if (!file.rows || file.rows.length === 0) return;
-    file.rows.forEach((row) => {
-      row.cells.forEach((cell, colIndex) => {
-        if (!cell) return;
-        let isMatch = false;
-        if (regex) {
-          regex.lastIndex = 0;
-          isMatch = regex.test(cell);
-        } else if (searchTerms.length > 0) {
-          const target = options.isCaseSensitive ? cell : cell.toLowerCase();
-          isMatch = searchTerms.every((term) => {
-            const t = options.isCaseSensitive ? term : term.toLowerCase();
-            return target.includes(t);
-          });
-        }
-        if (!isMatch) return;
-        results.push({
-          fileId: file.id,
-          rowIndex: row.rowIndex,
-          colIndex,
-          key: row.key || '',
-          context: cell.length > 50 ? `${cell.substring(0, 50)}...` : cell
-        });
-      });
-    });
-  });
-  return results;
-}
 
 const FunctionPanel: React.FC = () => {
   const activeTab = useEditorStore((state) => state.activeTab);
@@ -112,6 +55,9 @@ const FunctionPanel: React.FC = () => {
   const setSelectedFile = useEditorStore((state) => state.setSelectedFile);
   const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
+  const isEditing = useEditorStore((state) => state.isEditing);
+  const editingCell = useEditorStore((state) => state.editingCell);
+  const tempValue = useEditorStore((state) => state.tempValue);
 
   const projectData = useProjectStore();
 
@@ -126,86 +72,185 @@ const FunctionPanel: React.FC = () => {
   const latestSearchTokenRef = useRef(0);
   const cancelSearchStreamRef = useRef<(() => void) | null>(null);
   const virtualRowPageCacheRef = useRef<Map<number, VirtualSearchRow[]>>(new Map());
+  const virtualRowCacheSourceRef = useRef<VirtualSearchRow[] | null>(null);
+  const searchListRef = useRef<FixedSizeList | null>(null);
+  const searchListScrollOffsetRef = useRef(0);
+  const pendingViewportSnapshotRef = useRef<SearchListViewportSnapshot | null>(null);
+  const previousSearchCriteriaKeyRef = useRef('');
+  const previousLivePreviewFileIdRef = useRef<string | undefined>();
 
   const allSearchResultsRef = useRef<SearchResult[]>([]);
   const [searchResultCount, setSearchResultCount] = useState(0);
   const [searchResultVersion, setSearchResultVersion] = useState(0);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const effectiveScopeId = isGlobalSearch ? '__global__' : (selectedFileId || '__none__');
+  const ignoredFileIdsKey = useMemo(
+    () => [...(projectData.ignoredFileIds || [])].sort().join('|'),
+    [projectData.ignoredFileIds]
+  );
+  const searchDataDependencyKey = useMemo(
+    () => buildSearchDataDependencyKey(projectData.files, {
+      isGlobalSearch,
+      selectedFileId
+    }),
+    [projectData.files, isGlobalSearch, selectedFileId]
+  );
+  const searchCriteriaKey = `${debouncedSearchQuery}::${isRegExp ? 1 : 0}::${isCaseSensitive ? 1 : 0}::${isGlobalSearch ? 1 : 0}::${effectiveScopeId}::${ignoredFileIdsKey}`;
+  const livePreviewTarget = useMemo<SearchResultLiveOverride | undefined>(() => {
+    if (!isEditing || !selectedFileId || !editingCell) return undefined;
+    return {
+      fileId: selectedFileId,
+      rowIndex: editingCell.row,
+      colIndex: editingCell.col,
+      value: tempValue
+    };
+  }, [isEditing, selectedFileId, editingCell, tempValue]);
+  const livePreviewKey = livePreviewTarget
+    ? `${livePreviewTarget.fileId}:${livePreviewTarget.rowIndex}:${livePreviewTarget.colIndex}:${livePreviewTarget.value}`
+    : '';
 
   const syncHighlightsForFile = (fileId?: string) => {
     if (!fileId) {
       setSearchResults([]);
       return;
     }
-    const matches = allSearchResultsRef.current.filter((r) => r.fileId === fileId);
+
+    const matches = allSearchResultsRef.current.filter((result) => result.fileId === fileId);
     setSearchResults(matches);
   };
 
   const resetAllSearchResults = () => {
     allSearchResultsRef.current = [];
     setSearchResultCount(0);
-    setSearchResultVersion((v) => v + 1);
+    setSearchResultVersion((version) => version + 1);
     setSearchResults([]);
+    setCurrentResultIndex(-1);
     setCurrentSearchResult(undefined);
   };
 
-  const groupedResults = useMemo<GroupedSearchResult[]>(() => {
-    const groupsMap = new Map<string, GroupedSearchResult>();
-    allSearchResultsRef.current.forEach((res, idx) => {
-      const existing = groupsMap.get(res.fileId);
-      if (existing) {
-        existing.items.push({ result: res, index: idx });
-      } else {
-        groupsMap.set(res.fileId, { fileId: res.fileId, items: [{ result: res, index: idx }] });
-      }
-    });
-    return Array.from(groupsMap.values());
-  }, [searchResultVersion]);
+  const groupedResults = useMemo(
+    () => groupSearchResults(allSearchResultsRef.current),
+    [searchResultVersion]
+  );
 
-  const virtualRows = useMemo<VirtualSearchRow[]>(() => {
-    const rows: VirtualSearchRow[] = [];
-    groupedResults.forEach((group) => {
-      rows.push({ type: 'group', key: `g-${group.fileId}`, fileId: group.fileId, count: group.items.length });
-      if (!collapsedFiles.has(group.fileId)) {
-        group.items.forEach((item) => {
-          rows.push({ type: 'match', key: `m-${group.fileId}-${item.index}`, item });
-        });
-      }
-    });
-    return rows;
-  }, [groupedResults, collapsedFiles]);
+  const virtualRows = useMemo(
+    () => buildVirtualSearchRows(groupedResults, collapsedFiles),
+    [groupedResults, collapsedFiles]
+  );
 
   useEffect(() => {
     if (debouncedSearchQuery) {
-      handleSearch();
-    } else {
-      cancelSearchStreamRef.current?.();
-      cancelSearchStreamRef.current = null;
-      resetAllSearchResults();
-      setSearchHasMore(false);
-      setIsSearching(false);
+      const preserveViewport = previousSearchCriteriaKeyRef.current === searchCriteriaKey;
+      previousSearchCriteriaKeyRef.current = searchCriteriaKey;
+      handleSearch({ query: debouncedSearchQuery, preserveViewport });
+      return;
     }
-  }, [debouncedSearchQuery, isRegExp, isCaseSensitive, isGlobalSearch, selectedFileId, projectData.files, projectData.ignoredFileIds]);
+
+    previousSearchCriteriaKeyRef.current = '';
+    pendingViewportSnapshotRef.current = null;
+    cancelSearchStreamRef.current?.();
+    cancelSearchStreamRef.current = null;
+    resetAllSearchResults();
+    setSearchHasMore(false);
+    setIsSearching(false);
+    searchListRef.current?.scrollTo(0);
+    searchListScrollOffsetRef.current = 0;
+  }, [searchCriteriaKey, searchDataDependencyKey]);
 
   useEffect(() => {
     syncHighlightsForFile(selectedFileId);
   }, [selectedFileId, searchResultVersion]);
 
+  const replaceResultsForFile = (items: SearchResult[], fileId: string, nextFileResults: SearchResult[]) => {
+    const firstMatchIndex = items.findIndex((item) => item.fileId === fileId);
+    const withoutFileItems = items.filter((item) => item.fileId !== fileId);
+
+    if (firstMatchIndex < 0) {
+      return nextFileResults.length > 0
+        ? [...withoutFileItems, ...nextFileResults]
+        : withoutFileItems;
+    }
+
+    const insertionIndex = items
+      .slice(0, firstMatchIndex)
+      .filter((item) => item.fileId !== fileId)
+      .length;
+
+    return [
+      ...withoutFileItems.slice(0, insertionIndex),
+      ...nextFileResults,
+      ...withoutFileItems.slice(insertionIndex)
+    ];
+  };
+
+  const refreshSearchResultsForFile = (fileId: string, override?: SearchResultLiveOverride) => {
+    const file = projectData.files[fileId];
+    if (!debouncedSearchQuery) return;
+
+    if (!file || !file.rows || file.rows.length === 0) {
+      mutateSearchResults((items) => replaceResultsForFile(items, fileId, []));
+      return;
+    }
+
+    const nextFileResults = buildLocalSearchResults([file], debouncedSearchQuery, {
+      isRegExp,
+      isCaseSensitive: Boolean(isCaseSensitive)
+    }, override);
+
+    mutateSearchResults((items) => replaceResultsForFile(items, fileId, nextFileResults));
+  };
+
+  useEffect(() => {
+    if (!debouncedSearchQuery) {
+      previousLivePreviewFileIdRef.current = livePreviewTarget?.fileId;
+      return;
+    }
+
+    const fileIdsToRefresh = new Set<string>();
+    if (previousLivePreviewFileIdRef.current) fileIdsToRefresh.add(previousLivePreviewFileIdRef.current);
+    if (livePreviewTarget?.fileId) fileIdsToRefresh.add(livePreviewTarget.fileId);
+    if (fileIdsToRefresh.size === 0) return;
+
+    fileIdsToRefresh.forEach((fileId) => {
+      refreshSearchResultsForFile(
+        fileId,
+        livePreviewTarget?.fileId === fileId ? livePreviewTarget : undefined
+      );
+    });
+
+    previousLivePreviewFileIdRef.current = livePreviewTarget?.fileId;
+  }, [debouncedSearchQuery, livePreviewKey, isRegExp, isCaseSensitive]);
+
+  useLayoutEffect(() => {
+    const snapshot = pendingViewportSnapshotRef.current;
+    if (!snapshot || !searchListRef.current || resultsListHeight <= 0) return;
+
+    const resolution = resolveSearchListViewport(virtualRows, snapshot, RESULT_ROW_HEIGHT, resultsListHeight);
+    searchListRef.current.scrollTo(resolution.scrollOffset);
+    searchListScrollOffsetRef.current = resolution.scrollOffset;
+
+    if (resolution.anchorFound || !isSearching) {
+      pendingViewportSnapshotRef.current = null;
+    }
+  }, [virtualRows, isSearching, resultsListHeight]);
+
   const toggleFileCollapse = (fileId: string) => {
-    const newSet = new Set(collapsedFiles);
-    if (newSet.has(fileId)) newSet.delete(fileId);
-    else newSet.add(fileId);
-    setCollapsedFiles(newSet);
+    const next = new Set(collapsedFiles);
+    if (next.has(fileId)) next.delete(fileId);
+    else next.add(fileId);
+    setCollapsedFiles(next);
   };
 
   const handleJump = async (fileId: string, rowIndex: number, colIndex: number, desiredIndex?: number) => {
+    commitActiveEdit({ exitEditing: true, blur: true });
+
     const file = projectData.files[fileId];
     if (file && (!file.rows || file.rows.length === 0)) {
       try {
         await fileService.readFile(fileId);
-      } catch (e) {
-        console.error('自动加载文件失败', e);
+      } catch (error) {
+        console.error('自动加载文件失败', error);
       }
     }
 
@@ -218,7 +263,7 @@ const FunctionPanel: React.FC = () => {
     let targetIndex = desiredIndex;
     if (targetIndex === undefined) {
       targetIndex = allSearchResultsRef.current.findIndex(
-        (r) => r.fileId === fileId && r.rowIndex === rowIndex && r.colIndex === colIndex
+        (result) => result.fileId === fileId && result.rowIndex === rowIndex && result.colIndex === colIndex
       );
       if (targetIndex < 0) targetIndex = undefined;
     }
@@ -231,8 +276,20 @@ const FunctionPanel: React.FC = () => {
     setSelectedCell(rowIndex, colIndex);
   };
 
-  const handleSearch = () => {
-    if (!searchQuery) return;
+  const handleSearch = (options: { query: string; preserveViewport: boolean }) => {
+    if (!options.query) return;
+
+    if (options.preserveViewport) {
+      pendingViewportSnapshotRef.current = captureSearchListViewport(
+        virtualRows,
+        searchListScrollOffsetRef.current,
+        RESULT_ROW_HEIGHT
+      );
+    } else {
+      pendingViewportSnapshotRef.current = null;
+      searchListRef.current?.scrollTo(0);
+      searchListScrollOffsetRef.current = 0;
+    }
 
     const requestToken = ++latestSearchTokenRef.current;
     cancelSearchStreamRef.current?.();
@@ -243,23 +300,25 @@ const FunctionPanel: React.FC = () => {
     resetAllSearchResults();
 
     const dirtyLoadedFiles = Object.values(projectData.files).filter((file) => {
-      if (!file.isDirty || !file.rows || file.rows.length === 0) return false;
+      const isLivePreviewFile = livePreviewTarget?.fileId === file.id;
+      if ((!file.isDirty && !isLivePreviewFile) || !file.rows || file.rows.length === 0) return false;
       if (isGlobalSearch) return true;
       return Boolean(selectedFileId && file.id === selectedFileId);
     });
-    const dirtyFileIds = dirtyLoadedFiles.map((f) => f.id);
+    const dirtyFileIds = Array.from(new Set(dirtyLoadedFiles.map((file) => file.id)));
 
     if (dirtyLoadedFiles.length > 0) {
-      const localResults = buildLocalSearchResults(dirtyLoadedFiles, searchQuery, {
+      const localResults = buildLocalSearchResults(dirtyLoadedFiles, options.query, {
         isRegExp,
         isCaseSensitive: Boolean(isCaseSensitive)
-      });
+      }, livePreviewTarget);
       allSearchResultsRef.current.push(...localResults);
       setSearchResultCount(localResults.length);
-      setSearchResultVersion((v) => v + 1);
+      setSearchResultVersion((version) => version + 1);
+
       const currentFileId = useEditorStore.getState().selectedFileId;
       if (currentFileId) {
-        const localHighlights = localResults.filter((r) => r.fileId === currentFileId);
+        const localHighlights = localResults.filter((result) => result.fileId === currentFileId);
         if (localHighlights.length > 0) {
           appendSearchResults(localHighlights);
         }
@@ -275,7 +334,7 @@ const FunctionPanel: React.FC = () => {
 
     cancelSearchStreamRef.current = searchService.streamSearchInProject(
       projectData,
-      searchQuery,
+      options.query,
       {
         isRegExp,
         isCaseSensitive,
@@ -291,7 +350,7 @@ const FunctionPanel: React.FC = () => {
 
           allSearchResultsRef.current.push(...chunk);
           setSearchResultCount(allSearchResultsRef.current.length);
-          setSearchResultVersion((v) => v + 1);
+          setSearchResultVersion((version) => version + 1);
 
           const currentFileId = useEditorStore.getState().selectedFileId;
           if (currentFileId) {
@@ -315,15 +374,29 @@ const FunctionPanel: React.FC = () => {
     const next = updater(allSearchResultsRef.current);
     allSearchResultsRef.current = next;
     setSearchResultCount(next.length);
-    setSearchResultVersion((v) => v + 1);
+    setSearchResultVersion((version) => version + 1);
 
     const state = useEditorStore.getState();
     syncHighlightsForFile(state.selectedFileId);
+
+    if (state.currentSearchResult) {
+      const nextIndex = next.findIndex((item) => getSearchResultKey(item) === getSearchResultKey(state.currentSearchResult!));
+      if (nextIndex >= 0) {
+        setCurrentResultIndex(nextIndex);
+        setCurrentSearchResult(next[nextIndex]);
+        return;
+      }
+    }
 
     if (state.currentResultIndex >= next.length) {
       const nextIndex = next.length > 0 ? next.length - 1 : -1;
       setCurrentResultIndex(nextIndex);
       setCurrentSearchResult(nextIndex >= 0 ? next[nextIndex] : undefined);
+      return;
+    }
+
+    if (state.currentResultIndex >= 0) {
+      setCurrentSearchResult(next[state.currentResultIndex]);
     }
   };
 
@@ -338,16 +411,16 @@ const FunctionPanel: React.FC = () => {
     });
 
     projectData.updateCell(result.fileId, result.rowIndex, result.colIndex, newText);
-    mutateSearchResults((items) => items.filter((r) => r !== result));
+    mutateSearchResults((items) => items.filter((item) => item !== result));
   };
 
   const handleReplaceAll = () => {
     if (allSearchResultsRef.current.length === 0) return;
 
     const fileGroups: Record<string, SearchResult[]> = {};
-    allSearchResultsRef.current.forEach((res) => {
-      if (!fileGroups[res.fileId]) fileGroups[res.fileId] = [];
-      fileGroups[res.fileId].push(res);
+    allSearchResultsRef.current.forEach((result) => {
+      if (!fileGroups[result.fileId]) fileGroups[result.fileId] = [];
+      fileGroups[result.fileId].push(result);
     });
 
     Object.entries(fileGroups).forEach(([fileId, results]) => {
@@ -355,13 +428,13 @@ const FunctionPanel: React.FC = () => {
       if (!file) return;
 
       const updates: { row: number; col: number; value: string }[] = [];
-      results.forEach((res) => {
-        const originalText = file.rows[res.rowIndex].cells[res.colIndex];
+      results.forEach((result) => {
+        const originalText = file.rows[result.rowIndex].cells[result.colIndex];
         const newText = searchService.replace(originalText, searchQuery, replaceQuery, {
           isRegExp,
           isCaseSensitive
         });
-        updates.push({ row: res.rowIndex, col: res.colIndex, value: newText });
+        updates.push({ row: result.rowIndex, col: result.colIndex, value: newText });
       });
 
       if (updates.length > 0) {
@@ -369,11 +442,11 @@ const FunctionPanel: React.FC = () => {
       }
     });
 
-    handleSearch();
+    handleSearch({ query: searchQuery, preserveViewport: true });
   };
 
   const handleDismiss = (result: SearchResult) => {
-    mutateSearchResults((items) => items.filter((r) => r !== result));
+    mutateSearchResults((items) => items.filter((item) => item !== result));
   };
 
   const handleErrorClick = async (error: ValidationError) => {
@@ -423,40 +496,40 @@ const FunctionPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (runShortcutRules(e, [
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (runShortcutRules(event, [
         {
-          match: (ev) => ev.key === 'F3',
-          run: (ev) => {
-            ev.preventDefault();
-            jumpSearchResult(ev.shiftKey ? -1 : 1);
+          match: (keyboardEvent) => keyboardEvent.key === 'F3',
+          run: (keyboardEvent) => {
+            keyboardEvent.preventDefault();
+            jumpSearchResult(keyboardEvent.shiftKey ? -1 : 1);
           }
         },
         {
-          match: (ev) => hasModKey(ev) && ev.altKey && ev.key === 'Enter',
-          run: (ev) => {
-            ev.preventDefault();
+          match: (keyboardEvent) => hasModKey(keyboardEvent) && keyboardEvent.altKey && keyboardEvent.key === 'Enter',
+          run: (keyboardEvent) => {
+            keyboardEvent.preventDefault();
             setActiveTab('search');
             handleReplaceAll();
           }
         }
       ])) return true;
 
-      if (isEditableTarget(e.target)) return false;
+      if (isEditableTarget(event.target)) return false;
 
-      return runShortcutRules(e, [
+      return runShortcutRules(event, [
         {
-          match: (ev) => !hasModKey(ev) && ev.altKey && ev.key.toLowerCase() === 'c',
-          run: (ev) => {
-            ev.preventDefault();
+          match: (keyboardEvent) => !hasModKey(keyboardEvent) && keyboardEvent.altKey && keyboardEvent.key.toLowerCase() === 'c',
+          run: (keyboardEvent) => {
+            keyboardEvent.preventDefault();
             setActiveTab('search');
             toggleCaseSensitive();
           }
         },
         {
-          match: (ev) => !hasModKey(ev) && ev.altKey && ev.key.toLowerCase() === 'r',
-          run: (ev) => {
-            ev.preventDefault();
+          match: (keyboardEvent) => !hasModKey(keyboardEvent) && keyboardEvent.altKey && keyboardEvent.key.toLowerCase() === 'r',
+          run: (keyboardEvent) => {
+            keyboardEvent.preventDefault();
             setActiveTab('search');
             toggleRegExp();
           }
@@ -474,15 +547,15 @@ const FunctionPanel: React.FC = () => {
     }
   }, [projectData.files, projectData.keyIndex, projectData.ignoredFileIds]);
 
-  useEffect(() => {
-    return () => {
-      cancelSearchStreamRef.current?.();
-      cancelSearchStreamRef.current = null;
-    };
+  useEffect(() => () => {
+    cancelSearchStreamRef.current?.();
+    cancelSearchStreamRef.current = null;
   }, []);
 
   const renderMatchContent = (context: string) => {
-    if (!searchQuery) return <span className="match-context" title={context}>{context}</span>;
+    if (!searchQuery) {
+      return <span className="match-context" title={context}>{context}</span>;
+    }
 
     const PADDING = 20;
     let matchIndex = -1;
@@ -500,7 +573,10 @@ const FunctionPanel: React.FC = () => {
         regex = new RegExp(escaped, flags);
 
         if (!regex.test(context) && pattern.includes(' ')) {
-          const fuzzyPattern = pattern.split(' ').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+          const fuzzyPattern = pattern
+            .split(' ')
+            .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('.*');
           regex = new RegExp(fuzzyPattern, flags);
         }
       }
@@ -517,9 +593,9 @@ const FunctionPanel: React.FC = () => {
     }
 
     if (matchIndex === -1) {
-      const idx = context.toLowerCase().indexOf(searchQuery.toLowerCase());
-      if (idx !== -1) {
-        matchIndex = idx;
+      const index = context.toLowerCase().indexOf(searchQuery.toLowerCase());
+      if (index !== -1) {
+        matchIndex = index;
         matchLength = searchQuery.length;
       } else {
         return <span className="match-context" title={context}>{context}</span>;
@@ -560,7 +636,18 @@ const FunctionPanel: React.FC = () => {
     );
   };
 
+  const handleSearchListScroll = ({ scrollOffset }: ListOnScrollProps) => {
+    searchListScrollOffsetRef.current = scrollOffset;
+  };
+
+  const getVirtualRowItemKey = (index: number) => virtualRows[index]?.key ?? `row-${index}`;
+
   const renderVirtualRow = ({ index, style }: ListChildComponentProps) => {
+    if (virtualRowCacheSourceRef.current !== virtualRows) {
+      virtualRowPageCacheRef.current.clear();
+      virtualRowCacheSourceRef.current = virtualRows;
+    }
+
     const pageIndex = Math.floor(index / VIRTUAL_PAGE_SIZE);
     let pageRows = virtualRowPageCacheRef.current.get(pageIndex);
 
@@ -572,7 +659,9 @@ const FunctionPanel: React.FC = () => {
 
       if (virtualRowPageCacheRef.current.size > VIRTUAL_PAGE_CACHE_LIMIT) {
         const oldestPage = virtualRowPageCacheRef.current.keys().next().value as number | undefined;
-        if (oldestPage !== undefined) virtualRowPageCacheRef.current.delete(oldestPage);
+        if (oldestPage !== undefined) {
+          virtualRowPageCacheRef.current.delete(oldestPage);
+        }
       }
     } else {
       virtualRowPageCacheRef.current.delete(pageIndex);
@@ -597,6 +686,9 @@ const FunctionPanel: React.FC = () => {
     }
 
     const { result, index: absoluteIndex } = row.item;
+    const resultFile = projectData.files[result.fileId];
+    const displayRowNumber = getSearchResultDisplayRowNumber(result);
+    const columnLabel = getSearchResultColumnLabel(resultFile?.headers, result.colIndex);
     return (
       <div style={style}>
         <div
@@ -607,8 +699,24 @@ const FunctionPanel: React.FC = () => {
             handleJump(result.fileId, result.rowIndex, result.colIndex, absoluteIndex);
           }}
         >
-          {renderMatchContent(result.context)}
-          <div className="match-actions" onClick={(e) => e.stopPropagation()}>
+          <div className="match-item-main">
+            <div className="match-item-meta">
+              <span
+                className="match-line-badge"
+                title={`第 ${displayRowNumber} 行`}
+              >
+                L{displayRowNumber}
+              </span>
+              <span
+                className="match-column-badge"
+                title={`命中列：${columnLabel}（第 ${result.colIndex + 1} 列）`}
+              >
+                {columnLabel}
+              </span>
+            </div>
+            {renderMatchContent(result.context)}
+          </div>
+          <div className="match-actions" onClick={(event) => event.stopPropagation()}>
             <button className="action-icon-btn" title="替换" onClick={() => handleReplaceSingle(result)}>R</button>
             <button className="action-icon-btn" title="忽略" onClick={() => handleDismiss(result)}>×</button>
           </div>
@@ -616,10 +724,6 @@ const FunctionPanel: React.FC = () => {
       </div>
     );
   };
-
-  useEffect(() => {
-    virtualRowPageCacheRef.current.clear();
-  }, [virtualRows]);
 
   return (
     <div className="function-panel">
@@ -636,7 +740,7 @@ const FunctionPanel: React.FC = () => {
           <div className="search-tab">
             <div className="search-container">
               <div className="input-wrapper">
-                <input ref={searchInputRef} type="text" placeholder="查找" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <input ref={searchInputRef} type="text" placeholder="查找" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
                 <div className="input-options">
                   <div className={`option-btn ${isCaseSensitive ? 'active' : ''}`} title="区分大小写 (Alt+C)" onClick={toggleCaseSensitive}><span className="option-icon">Aa</span></div>
                   <div className={`option-btn ${isRegExp ? 'active' : ''}`} title="正则表达式 (Alt+R)" onClick={toggleRegExp}><span className="option-icon">.*</span></div>
@@ -650,8 +754,8 @@ const FunctionPanel: React.FC = () => {
                   type="text"
                   placeholder="替换为"
                   value={replaceQuery}
-                  onChange={(e) => setReplaceQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleReplaceAll()}
+                  onChange={(event) => setReplaceQuery(event.target.value)}
+                  onKeyDown={(event) => event.key === 'Enter' && handleReplaceAll()}
                 />
                 <div className="input-options">
                   <div className="option-btn" title="全部替换 (Ctrl+Alt+Enter)" onClick={handleReplaceAll} style={{ color: searchResultCount === 0 ? '#ccc' : '#333' }}>
@@ -671,7 +775,15 @@ const FunctionPanel: React.FC = () => {
 
               <div className="results-list results-list-virtual" ref={resultsContainerRef}>
                 {resultsListHeight > 0 && (
-                  <FixedSizeList height={resultsListHeight} width={resultsListWidth || '100%'} itemCount={virtualRows.length} itemSize={RESULT_ROW_HEIGHT}>
+                  <FixedSizeList
+                    ref={searchListRef}
+                    height={resultsListHeight}
+                    width={resultsListWidth || '100%'}
+                    itemCount={virtualRows.length}
+                    itemSize={RESULT_ROW_HEIGHT}
+                    itemKey={getVirtualRowItemKey}
+                    onScroll={handleSearchListScroll}
+                  >
                     {renderVirtualRow}
                   </FixedSizeList>
                 )}

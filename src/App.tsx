@@ -36,7 +36,7 @@ function App() {
     useEffect(() => {
         window.electronAPI.onSaveTrigger(async () => {
             try {
-                await fileService.saveAllDirtyFiles();
+                await fileService.saveAllDirtyFiles({ flushActiveEdit: true });
             } catch (err) {
                 console.error('保存失败', err);
             }

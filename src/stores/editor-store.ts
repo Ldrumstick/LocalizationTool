@@ -200,8 +200,6 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   setSearchResults: (results) => set(produce((state: EditorState) => {
     state.searchResults = results;
-    state.currentResultIndex = results.length > 0 ? 0 : -1;
-    state.currentSearchResult = results.length > 0 ? results[0] : undefined;
   })),
 
   appendSearchResults: (results) => set(produce((state: EditorState) => {

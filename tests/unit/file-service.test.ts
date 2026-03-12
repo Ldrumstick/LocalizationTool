@@ -3,6 +3,13 @@ import { fileService } from '../../src/services/file-service';
 import { useEditorStore } from '../../src/stores/editor-store';
 import { useProjectStore } from '../../src/stores/project-store';
 
+jest.mock('papaparse', () => ({
+  __esModule: true,
+  default: {
+    unparse: (data: string[][]) => data.map((row) => row.join(',')).join('\r\n')
+  }
+}));
+
 describe('file-service project restore', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -108,5 +115,49 @@ describe('file-service project restore', () => {
     expect(useProjectStore.getState().projectPath).toBe('');
     expect(useProjectStore.getState().lastOpenedFileId).toBeUndefined();
     expect(useEditorStore.getState().selectedFileId).toBeUndefined();
+  });
+
+  it('should flush active edits before saving dirty files when requested', async () => {
+    act(() => {
+      useProjectStore.getState().setFiles({
+        'file-1': {
+          id: 'file-1',
+          fileName: 'dialog.csv',
+          filePath: 'G:/demo/dialog.csv',
+          encoding: 'UTF-8',
+          headers: ['Key', 'Value'],
+          rows: [{ rowIndex: 0, cells: ['HELLO', 'World'], key: 'HELLO' }],
+          isDirty: false,
+          isIgnored: false,
+          lastModified: 1
+        }
+      });
+
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 0, col: 1 },
+        isEditing: true,
+        editingCell: { row: 0, col: 1 },
+        editingLocation: 'cell',
+        tempValue: 'Edited World',
+        originalValue: 'World'
+      });
+    });
+
+    window.electronAPI.saveFile.mockResolvedValue({
+      success: true,
+      lastModified: 2
+    });
+
+    await act(async () => {
+      await fileService.saveAllDirtyFiles({ flushActiveEdit: true });
+    });
+
+    expect(window.electronAPI.saveFile).toHaveBeenCalledTimes(1);
+    expect(window.electronAPI.saveFile.mock.calls[0][0].content).toContain('Edited World');
+    expect(useProjectStore.getState().files['file-1'].rows[0].cells[1]).toBe('Edited World');
+    expect(useProjectStore.getState().files['file-1'].isDirty).toBe(false);
+    expect(useEditorStore.getState().isEditing).toBe(true);
   });
 });

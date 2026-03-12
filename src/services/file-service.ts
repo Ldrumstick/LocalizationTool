@@ -3,6 +3,7 @@ import { useProjectStore } from '../stores/project-store';
 import { useEditorStore } from '../stores/editor-store';
 import Papa from 'papaparse';
 import { configService } from './config-service';
+import { commitActiveEdit } from './edit-session-service';
 
 /**
  * 文件管理服务
@@ -257,7 +258,11 @@ export const fileService = {
   /**
    * 保存所有已修改的文件
    */
-  async saveAllDirtyFiles(): Promise<void> {
+  async saveAllDirtyFiles(options: { flushActiveEdit?: boolean } = {}): Promise<void> {
+    if (options.flushActiveEdit) {
+      commitActiveEdit();
+    }
+
     const projectStore = useProjectStore.getState();
     const dirtyFiles = Object.values(projectStore.files).filter(f => f.isDirty);
     

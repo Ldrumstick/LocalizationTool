@@ -223,7 +223,7 @@
     position: relative;
     height: 100%;
     box-sizing: border-box;
-    padding: 6px 8px 6px 28px; /* Indent matches, increase padding */
+    padding: 6px 52px 6px 20px;
     cursor: pointer;
     font-family: Consolas, monospace;
     font-size: 12px;
@@ -252,6 +252,60 @@
     background-color: #d2e3fc; /* Darker than hover */
     border-left-color: #007bff;
     color: #000;
+}
+
+.match-item-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.match-item-meta {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.match-line-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 46px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.12);
+}
+
+.match-column-badge {
+    max-width: 86px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.match-item.active .match-line-badge {
+    background: #bfdbfe;
+    color: #1e40af;
+}
+
+.match-item.active .match-column-badge {
+    background: rgba(255, 255, 255, 0.82);
+    color: #374151;
 }
 
 .match-context {

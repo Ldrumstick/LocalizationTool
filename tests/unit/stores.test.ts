@@ -105,5 +105,20 @@ describe('Stores Unit Tests', () => {
       expect(useEditorStore.getState().isReplaceMode).toBe(true);
       expect(useEditorStore.getState().isRegExp).toBe(true);
     });
+
+    it('更新搜索高亮时不应重置当前结果定位', () => {
+      const currentResult = { fileId: 'file1', rowIndex: 2, colIndex: 1, key: 'KEY_A', context: 'before' };
+      const nextHighlights = [{ fileId: 'file1', rowIndex: 4, colIndex: 2, key: 'KEY_B', context: 'after' }];
+
+      act(() => {
+        useEditorStore.getState().setCurrentResultIndex(5);
+        useEditorStore.getState().setCurrentSearchResult(currentResult);
+        useEditorStore.getState().setSearchResults(nextHighlights);
+      });
+
+      expect(useEditorStore.getState().searchResults).toEqual(nextHighlights);
+      expect(useEditorStore.getState().currentResultIndex).toBe(5);
+      expect(useEditorStore.getState().currentSearchResult).toEqual(currentResult);
+    });
   });
 });

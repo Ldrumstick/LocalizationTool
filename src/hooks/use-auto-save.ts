@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useProjectStore } from '../stores/project-store';
+import { hasPendingActiveEdit } from '../services/edit-session-service';
 import { fileService } from '../services/file-service';
 
 /**
@@ -19,11 +20,12 @@ export const useAutoSave = (intervalMs = 30000) => {
       // 检查是否有脏文件
       const currentFiles = useProjectStore.getState().files;
       const hasDirty = Object.values(currentFiles).some(f => f.isDirty);
+      const hasPendingEdit = hasPendingActiveEdit();
       
-      if (hasDirty) {
+      if (hasDirty || hasPendingEdit) {
         console.log('触发自动保存...');
         try {
-          await fileService.saveAllDirtyFiles();
+          await fileService.saveAllDirtyFiles({ flushActiveEdit: hasPendingEdit });
         } catch (e) {
           console.error('自动保存失败', e);
         }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useProjectStore } from '../../stores/project-store';
 import { useEditorStore } from '../../stores/editor-store';
+import { commitActiveEdit, hasPendingActiveEdit } from '../../services/edit-session-service';
 import { fileService } from '../../services/file-service';
 import './FileList.css';
 
@@ -10,6 +11,11 @@ const FileList: React.FC = () => {
   const toggleIgnoreFile = useProjectStore((state) => state.toggleIgnoreFile);
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const setSelectedFile = useEditorStore((state) => state.setSelectedFile);
+  const activeEditSignature = useEditorStore((state) => (
+    state.isEditing
+      ? `${state.selectedFileId ?? ''}:${state.editingLocation}:${state.editingCell?.row ?? ''}:${state.editingCell?.col ?? ''}:${state.tempValue}`
+      : ''
+  ));
 
   const groups = useProjectStore((state) => state.groups);
   const addGroup = useProjectStore((state) => state.addGroup);
@@ -58,18 +64,7 @@ const FileList: React.FC = () => {
   const handleFileClick = async (fileId: string) => {
     const editorState = useEditorStore.getState();
     if (editorState.isEditing && editorState.selectedFileId && editorState.selectedFileId !== fileId) {
-       // Auto-commit current edit if switching files
-       if (editorState.editingLocation !== 'header') {
-         const targetCell = editorState.editingCell ?? editorState.selectedCell;
-         if (targetCell) {
-           useProjectStore.getState().updateCell(
-             editorState.selectedFileId,
-             targetCell.row,
-             targetCell.col,
-             editorState.tempValue
-           );
-         }
-       }
+       commitActiveEdit();
     }
     
     setSelectedFile(fileId);
@@ -80,6 +75,13 @@ const FileList: React.FC = () => {
       await fileService.readFile(fileId);
     }
   };
+
+  const pendingDirtyFileId = React.useMemo(() => {
+    if (!activeEditSignature) return undefined;
+    const currentEditingFileId = useEditorStore.getState().selectedFileId;
+    if (!currentEditingFileId || !hasPendingActiveEdit(currentEditingFileId)) return undefined;
+    return currentEditingFileId;
+  }, [activeEditSignature, files]);
 
   const handleContextMenu = (e: React.MouseEvent, targetId: string, type: 'file' | 'group') => {
     e.preventDefault();
@@ -199,7 +201,7 @@ const FileList: React.FC = () => {
                                         <span className="file-name">
                                             {file.fileName}
                                         </span>
-                                        {file.isDirty && <span className="dirty-indicator" title="未保存"></span>}
+                                        {(file.isDirty || pendingDirtyFileId === fid) && <span className="dirty-indicator" title="未保存"></span>}
                                     </li>
                                 );
                             })}
@@ -233,7 +235,7 @@ const FileList: React.FC = () => {
                                     <span className="file-name">
                                         {file.fileName}
                                     </span>
-                                    {file.isDirty && <span className="dirty-indicator" title="未保存"></span>}
+                                    {(file.isDirty || pendingDirtyFileId === fid) && <span className="dirty-indicator" title="未保存"></span>}
                                 </li>
                             );
                         })}
