@@ -32,7 +32,7 @@ describe('readFileAndDecode newline compatibility', () => {
     expect(result.rows[1].cells).toEqual(['BYE', 'Done']);
   });
 
-  it('should parse CSV with CR line endings via fallback', async () => {
+  it('should parse CSV with CR line endings', async () => {
     const filePath = path.join(tempDir, 'cr.csv');
     const content = 'Key,Value\rHELLO,World\rBYE,Done\r';
     await fs.writeFile(filePath, content, 'utf8');
@@ -45,6 +45,33 @@ describe('readFileAndDecode newline compatibility', () => {
     expect(result.headers).toEqual(['Key', 'Value']);
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0].cells).toEqual(['HELLO', 'World']);
+    expect(result.rows[1].cells).toEqual(['BYE', 'Done']);
+  });
+
+  it('should parse CSV with mixed CRLF and LF record delimiters', async () => {
+    const filePath = path.join(tempDir, 'mixed.csv');
+    const content = 'Key,Value\r\nHELLO,World\nBYE,Done\r\n';
+    await fs.writeFile(filePath, content, 'utf8');
+
+    const result = await readFileAndDecode(filePath);
+
+    expect(result.lineEnding).toBe('CRLF');
+    expect(result.headers).toEqual(['Key', 'Value']);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].cells).toEqual(['HELLO', 'World']);
+    expect(result.rows[1].cells).toEqual(['BYE', 'Done']);
+  });
+
+  it('should preserve quoted newlines while normalizing mixed record delimiters', async () => {
+    const filePath = path.join(tempDir, 'mixed-quoted.csv');
+    const content = 'Key,Value\r\nHELLO,\"Line1\r\nLine2\"\nBYE,Done\r\n';
+    await fs.writeFile(filePath, content, 'utf8');
+
+    const result = await readFileAndDecode(filePath);
+
+    expect(result.headers).toEqual(['Key', 'Value']);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].cells).toEqual(['HELLO', 'Line1\r\nLine2']);
     expect(result.rows[1].cells).toEqual(['BYE', 'Done']);
   });
 

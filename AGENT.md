@@ -27,7 +27,7 @@
 - [electron/file-utils.ts](/G:/LocalizationTool/electron/file-utils.ts)
   - 扫描根目录 CSV
   - 构建稳定文件 ID
-  - 编码检测、CSV 解析、换行兼容回退
+  - 编码检测、CSV 解析、引号外记录分隔符标准化兼容
 - [electron/watcher.ts](/G:/LocalizationTool/electron/watcher.ts)
   - `chokidar` 监听项目根目录
   - 保存后 1 秒内忽略自触发
@@ -81,7 +81,7 @@
 ### 3.2 CSV 读取与保存
 
 - 第一行视为表头，第一列视为 Key。
-- 读取时先按检测编码解析；若 PapaParse 因换行符出错，会回退到统一 `\n` 重新解析。
+- 读取时先按检测编码解码，再仅对引号外记录分隔符做标准化后以固定 `\n` 解析，兼容 `CRLF`、`LF`、`CR` 混用且不改写引号内多行文本。
 - 保存时维持原编码写回。
 - 保存路径必须保留：
   - `Papa.unparse(..., { newline: '\r\n' })`

@@ -58,6 +58,53 @@ function stripLeadingBomChar(content: string): string {
   return content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
 }
 
+// 仅统一引号外的记录分隔符，保留带引号字段中的真实多行文本。
+function normalizeCsvRecordDelimiters(content: string): string {
+  let inQuotes = false;
+  let segmentStart = 0;
+  const segments: string[] = [];
+
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+
+    if (char === '"') {
+      if (inQuotes && content[index + 1] === '"') {
+        index += 1;
+        continue;
+      }
+
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (inQuotes) continue;
+
+    if (char === '\r') {
+      const recordDelimiterLength = content[index + 1] === '\n' ? 2 : 1;
+      segments.push(content.slice(segmentStart, index), '\n');
+      segmentStart = index + recordDelimiterLength;
+
+      if (recordDelimiterLength === 2) {
+        index += 1;
+      }
+
+      continue;
+    }
+
+    if (char === '\n') {
+      segments.push(content.slice(segmentStart, index), '\n');
+      segmentStart = index + 1;
+    }
+  }
+
+  if (segments.length === 0) {
+    return content;
+  }
+
+  segments.push(content.slice(segmentStart));
+  return segments.join('');
+}
+
 export function detectLineEnding(content: string): TextLineEnding {
   const match = content.match(/\r\n|\n|\r/);
   if (!match) return 'CRLF';
@@ -143,24 +190,13 @@ export async function readFileAndDecode(filePath: string) {
   const decodedContent = iconv.decode(buffer, encoding);
   const content = stripLeadingBomChar(decodedContent);
   const lineEnding = detectLineEnding(content);
+  const normalizedContent = normalizeCsvRecordDelimiters(content);
 
   // 3. 解析 CSV
-  let parseResult = Papa.parse<string[]>(content, {
+  const parseResult = Papa.parse<string[]>(normalizedContent, {
     skipEmptyLines: true,
+    newline: '\n',
   });
-
-  // 兼容外部来源使用 LF/CR 换行符的场景，首次解析报错时自动回退。
-  if (parseResult.errors.length > 0) {
-    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const retryResult = Papa.parse<string[]>(normalizedContent, {
-      skipEmptyLines: true,
-      newline: '\n',
-    });
-
-    if (retryResult.errors.length < parseResult.errors.length) {
-      parseResult = retryResult;
-    }
-  }
 
   return {
     encoding,
