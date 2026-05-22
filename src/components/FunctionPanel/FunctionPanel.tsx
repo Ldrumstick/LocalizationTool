@@ -37,6 +37,7 @@ interface FunctionPanelProps {
 const FunctionPanel: React.FC<FunctionPanelProps> = ({ showTabs = true }) => {
   const activeTab = useEditorStore((state) => state.activeTab);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
+  const setStoreValidationErrors = useEditorStore((state) => state.setValidationErrors);
 
   const searchQuery = useEditorStore((state) => state.searchQuery);
   const setSearchQuery = useEditorStore((state) => state.setSearchQuery);
@@ -548,8 +549,9 @@ const FunctionPanel: React.FC<FunctionPanelProps> = ({ showTabs = true }) => {
     if (Object.keys(projectData.files).length > 0 || projectData.keyIndex) {
       const errors = validatorService.validateProject(projectData);
       setValidationErrors(errors);
+      setStoreValidationErrors(errors);
     }
-  }, [projectData.files, projectData.keyIndex, projectData.ignoredFileIds]);
+  }, [projectData.files, projectData.keyIndex, projectData.ignoredFileIds, setStoreValidationErrors]);
 
   useEffect(() => () => {
     cancelSearchStreamRef.current?.();
