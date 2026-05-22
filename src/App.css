@@ -11,32 +11,99 @@
     overflow: hidden;
 }
 
-/* 第一列：文件列表 */
-.file-list-panel {
-    width: 250px;
-    min-width: 200px;
-    max-width: 400px;
-    border-right: 1px solid #e0e0e0;
-    background-color: #f5f5f5;
+.workspace-panel {
+    position: relative;
+    flex: 0 0 408px;
+    width: 408px;
+    min-width: 408px;
+    border-right: 1px solid #d8dce2;
+    background-color: #f5f6f8;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    overflow: hidden;
 }
 
-/* 第二列：编辑区域 */
-.editor-panel {
+.workspace-collapsed .workspace-panel {
+    flex-basis: 48px;
+    width: 48px;
+    min-width: 48px;
+}
+
+.workspace-icon-rail {
+    display: flex;
+    flex: 0 0 48px;
+    flex-direction: column;
+    gap: 8px;
+    width: 48px;
+    height: 100%;
+    padding: 8px 6px;
+    box-sizing: border-box;
+    background-color: #f5f6f8;
+    border-right: 1px solid #d8dce2;
+}
+
+.workspace-icon-button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #4b5563;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.workspace-icon-button:hover {
+    background-color: #e8eef7;
+    border-color: #c8d6ea;
+    color: #1f2937;
+}
+
+.workspace-icon-button.active {
+    background-color: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+.workspace-toggle-button {
+    margin-top: auto;
+    font-size: 20px;
+}
+
+.workspace-content {
+    position: relative;
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-/* 第三列：功能面板 */
-.function-panel {
-    width: 350px;
-    min-width: 300px;
-    max-width: 500px;
-    border-left: 1px solid #e0e0e0;
-    background-color: #fafafa;
+.workspace-collapsed .workspace-content {
+    display: none;
+}
+
+.workspace-section {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+.workspace-section .file-list {
+    border-right: none;
+}
+
+.workspace-section .function-panel {
+    border-left: none;
+}
+
+.editor-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }

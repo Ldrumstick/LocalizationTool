@@ -718,9 +718,10 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
     }, []);
 
     // 单元格渲染函数
-    const Cell = useCallback(({ columnIndex, rowIndex, style }: any) => {
+    const Cell = useCallback(({ columnIndex, rowIndex, style, data }: any) => {
         const row = rows[rowIndex];
         const content = row.cells[columnIndex] || '';
+        const previewValue = data?.previewValue ?? '';
         const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === columnIndex;
 
         // Calculate isInSelectedRange once
@@ -917,7 +918,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 } else {
                 return (
                     <div className="cell-content-preview" style={{ whiteSpace: 'pre-wrap' }}>
-                        {useEditorStore.getState().tempValue}
+                        {previewValue}
                     </div>
                 );
                 }
@@ -942,7 +943,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
         };
 
         const displayTitle = isCurrentEditing && editingLocation !== 'cell'
-            ? tempValue
+            ? previewValue
             : content;
 
         return (
@@ -960,7 +961,7 @@ const GridView: React.FC<GridViewProps> = ({ headers, rows }) => {
                 {isBottomRight && <div className="fill-handle" onMouseDown={(e) => handleFillMouseDown(e, rowIndex, columnIndex)} />}
             </div>
         );
-    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentSearchResult, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, tempValue, fillState, currentToggleCols]);
+    }, [rows, selectedCell, selectedRange, setSelectedCell, searchResults, currentSearchResult, selectedFileId, isEditing, editingCell, enterEditMode, navigateCell, editingLocation, fillState, currentToggleCols]);
 
     const handleRowContextMenu = (rowIndex: number, e: React.MouseEvent) => {
         e.preventDefault();

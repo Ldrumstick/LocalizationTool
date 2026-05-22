@@ -11,14 +11,64 @@ interface InlineEditorProps {
   onNavigate: (direction: 'up' | 'down' | 'left' | 'right' | 'enter' | 'tab' | 'shift-tab') => void;
 }
 
+interface UndoEntry {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+}
+
 const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
-  const undoStackRef = useRef<string[]>([]);
+  const undoStackRef = useRef<UndoEntry[]>([]);
+  const pendingUndoEntryRef = useRef<UndoEntry | null>(null);
   const lastValueRef = useRef<string>('');
   const { tempValue, updateTempValue, exitEditMode, editMode, selectedFileId } = useEditorStore();
   const [localValue, setLocalValue] = useState(tempValue);
   const updateCell = useProjectStore((state) => state.updateCell);
+
+  const createUndoEntry = (input: HTMLInputElement): UndoEntry => ({
+    value: lastValueRef.current,
+    selectionStart: input.selectionStart ?? lastValueRef.current.length,
+    selectionEnd: input.selectionEnd ?? lastValueRef.current.length
+  });
+
+  const inferUndoEntry = (input: HTMLInputElement, nativeEvent: InputEvent): UndoEntry => {
+    const currentValue = input.value;
+    const prevValue = lastValueRef.current;
+    const currentSelectionStart = input.selectionStart ?? currentValue.length;
+    const currentSelectionEnd = input.selectionEnd ?? currentSelectionStart;
+    const inputType = nativeEvent?.inputType;
+
+    if (inputType?.startsWith('insert') || (!inputType && currentValue.length > prevValue.length)) {
+      const insertedLength = nativeEvent.data?.length ?? Math.max(0, currentValue.length - prevValue.length);
+      const selectionStart = Math.max(0, currentSelectionStart - insertedLength);
+      const replacedLength = Math.max(0, prevValue.length + insertedLength - currentValue.length);
+      return { value: prevValue, selectionStart, selectionEnd: selectionStart + replacedLength };
+    }
+
+    if (inputType === 'deleteContentBackward' || (!inputType && currentValue.length < prevValue.length)) {
+      const deletedLength = Math.max(0, prevValue.length - currentValue.length);
+      const selectionStart = currentSelectionStart + deletedLength;
+      return { value: prevValue, selectionStart, selectionEnd: selectionStart };
+    }
+
+    if (inputType === 'deleteContentForward') {
+      return { value: prevValue, selectionStart: currentSelectionStart, selectionEnd: currentSelectionEnd };
+    }
+
+    return { value: prevValue, selectionStart: currentSelectionStart, selectionEnd: currentSelectionEnd };
+  };
+
+  const restoreSelection = (selectionStart: number, selectionEnd: number) => {
+    setTimeout(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      const nextStart = Math.min(selectionStart, input.value.length);
+      const nextEnd = Math.min(selectionEnd, input.value.length);
+      input.setSelectionRange(nextStart, nextEnd);
+    }, 0);
+  };
 
   useEffect(() => {
     // 初始化 tempValue 和 originalValue
@@ -83,10 +133,12 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         if (undoStackRef.current.length > 0) {
             e.preventDefault();
-            const prevValue = undoStackRef.current.pop() ?? '';
-            lastValueRef.current = prevValue;
-            setLocalValue(prevValue);
-            updateTempValue(prevValue);
+            const prevEntry = undoStackRef.current.pop();
+            if (!prevEntry) return;
+            lastValueRef.current = prevEntry.value;
+            setLocalValue(prevEntry.value);
+            updateTempValue(prevEntry.value);
+            restoreSelection(prevEntry.selectionStart, prevEntry.selectionEnd);
             return;
         }
         // 如果当前内容与原始值一致（无修改），或者是空（Replace模式刚开始），且想撤销上一步操作
@@ -156,12 +208,26 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       const currentValue = e.currentTarget.value;
       const prevValue = lastValueRef.current;
       if (currentValue !== prevValue) {
-        undoStackRef.current.push(prevValue);
+        const inferredEntry = inferUndoEntry(e.currentTarget, nativeEvent);
+        const pendingEntry = pendingUndoEntryRef.current;
+        const shouldUsePendingEntry = pendingEntry && !(
+          currentValue !== prevValue &&
+          pendingEntry.selectionStart === e.currentTarget.selectionStart &&
+          pendingEntry.selectionEnd === e.currentTarget.selectionEnd
+        );
+        undoStackRef.current.push(shouldUsePendingEntry ? pendingEntry : inferredEntry);
+        pendingUndoEntryRef.current = null;
         if (undoStackRef.current.length > 100) {
           undoStackRef.current.shift();
         }
         lastValueRef.current = currentValue;
       }
+    }
+  };
+
+  const handleBeforeInput = (e: React.FormEvent<HTMLInputElement>) => {
+    if (!isComposingRef.current) {
+      pendingUndoEntryRef.current = createUndoEntry(e.currentTarget);
     }
   };
 
@@ -172,6 +238,7 @@ const InlineEditor: React.FC<InlineEditorProps> = ({ row, col, value, onNavigate
       className="inline-editor"
       value={localValue}
       onChange={handleChange}
+      onBeforeInput={handleBeforeInput}
       onInput={handleInput}
       onCompositionStart={handleCompositionStart}
       onCompositionUpdate={handleCompositionUpdate}

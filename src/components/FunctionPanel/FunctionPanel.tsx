@@ -30,7 +30,11 @@ const RESULT_ROW_HEIGHT = 34;
 const VIRTUAL_PAGE_SIZE = 200;
 const VIRTUAL_PAGE_CACHE_LIMIT = 24;
 
-const FunctionPanel: React.FC = () => {
+interface FunctionPanelProps {
+  showTabs?: boolean;
+}
+
+const FunctionPanel: React.FC<FunctionPanelProps> = ({ showTabs = true }) => {
   const activeTab = useEditorStore((state) => state.activeTab);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
 
@@ -727,13 +731,15 @@ const FunctionPanel: React.FC = () => {
 
   return (
     <div className="function-panel">
-      <div className="panel-tabs">
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>查找</button>
-        <button className={activeTab === 'validation' ? 'active' : ''} onClick={() => setActiveTab('validation')}>
-          校验
-          {validationErrors.length > 0 && <span className="tab-badge">{validationErrors.length}</span>}
-        </button>
-      </div>
+      {showTabs && (
+        <div className="panel-tabs">
+          <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>查找</button>
+          <button className={activeTab === 'validation' ? 'active' : ''} onClick={() => setActiveTab('validation')}>
+            校验
+            {validationErrors.length > 0 && <span className="tab-badge">{validationErrors.length}</span>}
+          </button>
+        </div>
+      )}
 
       <div className="panel-content">
         {activeTab === 'search' && (
@@ -810,7 +816,7 @@ const FunctionPanel: React.FC = () => {
                 </ul>
               </div>
             ) : (
-              <p className="placeholder-text">暂无发现错误。<br />点击上方标签页切换回查找功能。</p>
+              <p className="placeholder-text">暂无发现错误。</p>
             )}
           </div>
         )}

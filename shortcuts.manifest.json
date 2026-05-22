@@ -4,6 +4,7 @@
   { "keys": "Ctrl/Cmd + Z", "action": "Undo", "scope": "Global" },
   { "keys": "Ctrl/Cmd + Shift + Z", "action": "Redo", "scope": "Global" },
   { "keys": "Ctrl/Cmd + Y", "action": "Redo", "scope": "Global" },
+  { "keys": "Ctrl/Cmd + B", "action": "Toggle left workspace panel", "scope": "Global (non-editing)" },
   { "keys": "Ctrl/Cmd + F", "action": "Focus search input", "scope": "Global / Search panel" },
   { "keys": "Ctrl/Cmd + H", "action": "Focus replace input", "scope": "Global / Search panel" },
   { "keys": "F3", "action": "Next search result", "scope": "Search panel" },

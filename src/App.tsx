@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHistoryStore } from './stores/history-store';
+import { useEditorStore } from './stores/editor-store';
 import FileList from './components/FileList/FileList';
 import Editor from './components/Editor/Editor';
 import FunctionPanel from './components/FunctionPanel/FunctionPanel';
@@ -13,7 +14,10 @@ import './App.css';
 function App() {
     useAutoSave(30000);
     const hasRestoredProjectRef = useRef(false);
+    const setActiveTab = useEditorStore((state) => state.setActiveTab);
 
+    const [activeWorkspacePanel, setActiveWorkspacePanel] = useState<'files' | 'search' | 'validation'>('files');
+    const [isWorkspaceCollapsed, setIsWorkspaceCollapsed] = useState(false);
     const [updateModalOpen, setUpdateModalOpen] = useState(false);
     const [updateState, setUpdateState] = useState<UpdateState>({
         status: 'idle',
@@ -106,6 +110,13 @@ function App() {
 
             return runShortcutRules(e, [
                 {
+                    match: (ev) => hasModKey(ev) && ev.key.toLowerCase() === 'b',
+                    run: (ev) => {
+                        ev.preventDefault();
+                        setIsWorkspaceCollapsed((value) => !value);
+                    }
+                },
+                {
                     match: (ev) => hasModKey(ev) && ev.key.toLowerCase() === 'z' && !ev.shiftKey,
                     run: (ev) => {
                         ev.preventDefault();
@@ -124,6 +135,19 @@ function App() {
 
         return registerShortcut(handleKeyDown, { priority: ShortcutPriority.app });
     }, []);
+
+    const openWorkspacePanel = (panel: 'files' | 'search' | 'validation') => {
+        if (!isWorkspaceCollapsed && activeWorkspacePanel === panel) {
+            setIsWorkspaceCollapsed(true);
+            return;
+        }
+
+        setActiveWorkspacePanel(panel);
+        if (panel === 'search' || panel === 'validation') {
+            setActiveTab(panel);
+        }
+        setIsWorkspaceCollapsed(false);
+    };
 
     const handleCheckUpdate = async () => {
         try {
@@ -160,17 +184,60 @@ function App() {
 
     return (
         <div className="app">
-            <div className="app-container">
-                <div className="file-list-panel">
-                    <FileList />
-                </div>
+            <div className={`app-container ${isWorkspaceCollapsed ? 'workspace-collapsed' : ''}`}>
+                <aside className="workspace-panel" aria-label="左侧工作面板">
+                    <div className="workspace-icon-rail" aria-label="工作面板快捷入口">
+                        <button
+                            type="button"
+                            className={`workspace-icon-button ${activeWorkspacePanel === 'files' ? 'active' : ''}`}
+                            onClick={() => openWorkspacePanel('files')}
+                            title="项目文件"
+                            aria-label="项目文件"
+                        >
+                            <span aria-hidden="true">📄</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`workspace-icon-button ${activeWorkspacePanel === 'search' ? 'active' : ''}`}
+                            onClick={() => openWorkspacePanel('search')}
+                            title="查找"
+                            aria-label="查找"
+                        >
+                            <span aria-hidden="true">🔍</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`workspace-icon-button ${activeWorkspacePanel === 'validation' ? 'active' : ''}`}
+                            onClick={() => openWorkspacePanel('validation')}
+                            title="校验"
+                            aria-label="校验"
+                        >
+                            <span aria-hidden="true">✓</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="workspace-icon-button workspace-toggle-button"
+                            onClick={() => setIsWorkspaceCollapsed((value) => !value)}
+                            title={isWorkspaceCollapsed ? '展开左侧面板 (Ctrl+B)' : '折叠左侧面板 (Ctrl+B)'}
+                            aria-label={isWorkspaceCollapsed ? '展开左侧面板' : '折叠左侧面板'}
+                        >
+                            <span aria-hidden="true">{isWorkspaceCollapsed ? '›' : '‹'}</span>
+                        </button>
+                    </div>
+
+                    <div className="workspace-content" aria-hidden={isWorkspaceCollapsed}>
+                        <div className="workspace-section">
+                            {activeWorkspacePanel === 'files' ? (
+                                <FileList />
+                            ) : (
+                                <FunctionPanel showTabs={false} />
+                            )}
+                        </div>
+                    </div>
+                </aside>
 
                 <div className="editor-panel">
                     <Editor />
-                </div>
-
-                <div className="function-panel">
-                    <FunctionPanel />
                 </div>
             </div>
             <FileMonitor />
