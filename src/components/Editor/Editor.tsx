@@ -4,7 +4,7 @@ import { useProjectStore } from '../../stores/project-store';
 import { useEditorStore } from '../../stores/editor-store';
 import { formatTextFileFormatLabel } from '../../utils/text-file-format';
 import './Editor.css';
-import GridView from './GridView';
+import GlideGridView from './GlideGridView';
 import RichtextEditor from './RichtextEditor';
 import EditorToolbar from './EditorToolbar';
 import EditorContextMenu from './EditorContextMenu';
@@ -67,7 +67,7 @@ const Editor: React.FC = () => {
     <div className="editor" ref={containerRef}>
       <div className="editor-table">
         {currentFile ? (
-          <GridView headers={currentFile.headers} rows={currentFile.rows} />
+          <GlideGridView headers={currentFile.headers} rows={currentFile.rows} />
         ) : (
           <div className="table-placeholder">
             <p>表格编辑区域</p>

@@ -22,7 +22,8 @@
 #### 核心库
 
 **UI 组件**
-- `react-window`: ^1.8.10 - 虚拟滚动列表
+- `@glideapps/glide-data-grid`: ^6.0.3 - 主 CSV 表格编辑器
+- `react-window`: ^1.8.10 - 搜索结果虚拟列表
 - `@codemirror/state`: ^6.4.0 - 富文本编辑器状态管理
 - `@codemirror/view`: ^6.23.0 - 富文本编辑器视图
 - `@codemirror/language`: ^6.10.0 - 语言支持
@@ -365,34 +366,41 @@ ipcRenderer.on('update:show-dialog', handler);
 
 ### 3.2 表格编辑模块
 
-#### 3.2.1 虚拟滚动实现
+#### 3.2.1 主表格渲染实现
 
-使用 `react-window` 实现高性能渲染：
+主编辑区使用 `Glide Data Grid` 实现高性能 CSV 表格渲染；数据源仍由 `ProjectStore` / `EditorStore` 管理，Glide 只负责视图、选区和编辑事件入口：
 
 ```typescript
-import { FixedSizeGrid } from 'react-window';
+import { DataEditor, GridCellKind } from '@glideapps/glide-data-grid';
 
-interface TableProps {
+interface GlideGridViewProps {
   headers: string[];
   rows: CSVRow[];
-  onCellChange: (rowIndex: number, colIndex: number, value: string) => void;
 }
 
-const VirtualTable: React.FC<TableProps> = ({ headers, rows, onCellChange }) => {
-  const COLUMN_WIDTH = 150;
-  const ROW_HEIGHT = 35;
-
+const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
   return (
-    <FixedSizeGrid
-      columnCount={headers.length}
-      columnWidth={COLUMN_WIDTH}
-      height={window.innerHeight - 200}
-      rowCount={rows.length + 1} // +1 for header
-      rowHeight={ROW_HEIGHT}
-      width={window.innerWidth - 400}
-    >
-      {Cell}
-    </FixedSizeGrid>
+    <DataEditor
+      columns={headers.map((title, index) => ({ title, id: `col-${index}`, width: 180 }))}
+      rows={rows.length}
+      getCellContent={([col, row]) => ({
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: rows[row]?.cells[col] ?? '',
+        displayData: rows[row]?.cells[col] ?? '',
+      })}
+      onCellEdited={([col, row], value) => updateCell(fileId, row, col, value.data)}
+      getCellsForSelection={true}
+      onPaste={true}
+      onDelete={handleDelete}
+      onRowAppended={handleRowAppended}
+      rowMarkers={{ kind: 'both', width: 50 }}
+      rangeSelect="multi-rect"
+      rowSelect="multi"
+      columnSelect="multi"
+      fillHandle
+      keybindings={{ downFill: true, rightFill: true }}
+    />
   );
 };
 ```
@@ -406,104 +414,19 @@ const VirtualTable: React.FC<TableProps> = ({ headers, rows, onCellChange }) => 
 
 **编辑状态管理**：
 
-```typescript
-interface CellEditorState {
-  editingCell: { row: number; col: number } | null;
-  tempValue: string;
-}
-
-// 双击进入编辑
-const handleDoubleClick = (row: number, col: number) => {
-  setEditingCell({ row, col });
-  setTempValue(rows[row].cells[col]);
-};
-
-// 回车确认
-const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    commitEdit();
-    moveToNextRow();
-  } else if (e.key === 'Tab') {
-    e.preventDefault();
-    commitEdit();
-    moveToNextCell();
-  }
-};
-```
+单元格编辑由 Glide Data Grid 原生 overlay 负责。项目不再维护表格内联输入框，只在 `onCellEdited` / `onCellsEdited` 中把 Glide 返回的 `EditableGridCell` 转成 CSV 字符串并写入 `ProjectStore`。富文本编辑栏仍使用 `EditorStore.tempValue` 做独立编辑缓冲。
 
 #### 3.2.3 填充柄功能
 
 **实现思路**：
 
-```typescript
-interface FillHandleState {
-  isDragging: boolean;
-  startCell: { row: number; col: number };
-  endCell: { row: number; col: number };
-  fillMode: 'copy' | 'sequence';
-}
-
-const detectFillMode = (value: string): 'copy' | 'sequence' => {
-  // 检测是否为纯数字
-  if (/^\d+$/.test(value)) return 'sequence';
-  
-  // 检测是否包含数字后缀（如 Item_1）
-  if (/^(.+?)_(\d+)$/.test(value)) return 'sequence';
-  
-  return 'copy';
-};
-
-const fillCells = (startRow: number, endRow: number, col: number) => {
-  const startValue = rows[startRow].cells[col];
-  const mode = detectFillMode(startValue);
-  
-  if (mode === 'copy') {
-    // 纯复制
-    for (let i = startRow + 1; i <= endRow; i++) {
-      updateCell(i, col, startValue);
-    }
-  } else {
-    // 递增序列
-    const match = startValue.match(/^(.+?)_?(\d+)$/);
-    const prefix = match?.[1] || '';
-    const startNum = parseInt(match?.[2] || startValue);
-    
-    for (let i = startRow + 1; i <= endRow; i++) {
-      const num = startNum + (i - startRow);
-      const newValue = prefix ? `${prefix}_${num}` : `${num}`;
-      updateCell(i, col, newValue);
-    }
-  }
-};
-```
+填充柄交互、拖拽区域和普通复制填充使用 Glide 原生 `fillHandle` / `onFillPattern` / `keybindings.downFill`。项目只在 `onFillPattern` 中识别纯数字或带数字后缀的序列；识别成功时 `preventDefault()` 并批量写入递增值，识别失败时放行给 Glide 原生填充。
 
 #### 3.2.4 复制粘贴
 
 **剪贴板处理**：
 
-```typescript
-// 复制（支持多选）
-const handleCopy = (selectedCells: { row: number; col: number }[]) => {
-  const text = selectedCells
-    .map(cell => rows[cell.row].cells[cell.col])
-    .join('\t'); // Tab 分隔
-  
-  navigator.clipboard.writeText(text);
-};
-
-// 粘贴（支持跨应用）
-const handlePaste = async (targetRow: number, targetCol: number) => {
-  const text = await navigator.clipboard.readText();
-  const lines = text.split('\n');
-  
-  lines.forEach((line, rowOffset) => {
-    const cells = line.split('\t');
-    cells.forEach((value, colOffset) => {
-      updateCell(targetRow + rowOffset, targetCol + colOffset, value);
-    });
-  });
-};
-```
+复制与粘贴使用 Glide Data Grid 原生能力：`getCellsForSelection={true}` 提供复制数据，`onPaste={true}` 让 Glide 解析剪贴板并通过 `onCellEdited` / `onCellsEdited` 分发更新。粘贴超出当前表格范围时按 Glide 原生边界处理，不再自动扩行。
 
 ---
 
@@ -954,9 +877,9 @@ interface UIState {
 **目标**：流畅处理 50000+ 行
 
 **策略**：
-1. 使用 `react-window` 仅渲染可见区域（约 20-30 行）
-2. 单元格组件使用 `React.memo` 避免不必要的重渲染
-3. 懒加载文件内容（首次打开只加载前 1000 行，滚动时加载更多）
+1. 主编辑表格使用 `Glide Data Grid` 的 canvas 渲染与内部虚拟化能力，仅绘制可见区域。
+2. `getCellContent` 从 `CSVRow.cells` 按需读取，编辑通过 `updateCell` / `batchUpdateCells` 写回 Store。
+3. 搜索结果列表继续使用 `react-window`，避免大结果集产生过多 DOM 节点。
 
 ### 5.2 搜索性能优化
 
@@ -1404,7 +1327,7 @@ test('新用户首次使用完整流程', async ({ page }) => {
   await page.click('.file-item:first-child');
   
   // 6. 验证表格显示
-  await expect(page.locator('.table-grid')).toBeVisible();
+  await expect(page.locator('.glide-grid-view')).toBeVisible();
   
   // 7. 双击单元格编辑
   await page.dblclick('.cell[data-row="0"][data-col="1"]');
