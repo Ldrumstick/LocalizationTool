@@ -57,6 +57,8 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
   const setSelectedRange = useEditorStore((state) => state.setSelectedRange);
   const searchResults = useEditorStore((state) => state.searchResults);
   const currentSearchResult = useEditorStore((state) => state.currentSearchResult);
+  const setCurrentSearchResult = useEditorStore((state) => state.setCurrentSearchResult);
+  const setCurrentResultIndex = useEditorStore((state) => state.setCurrentResultIndex);
   const validationErrors = useEditorStore((state) => state.validationErrors);
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const isEditing = useEditorStore((state) => state.isEditing);
@@ -81,6 +83,7 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
   });
   const [targetScrollOffset, setTargetScrollOffset] = useState<{ x?: number; y?: number }>({});
   const scrollOffsetNudgeRef = useRef(false);
+  const lastSelectionChangeRef = useRef<{ row?: number; col?: number; timestamp: number } | null>(null);
 
   const currentToggleCols = useMemo(() => {
     if (!selectedFileId) return new Set<number>();
@@ -145,8 +148,20 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
     const targetCell = currentSearchResult && currentSearchResult.fileId === selectedFileId
       ? { row: currentSearchResult.rowIndex, col: currentSearchResult.colIndex }
       : selectedCell;
+    const targetSource = currentSearchResult && currentSearchResult.fileId === selectedFileId
+      ? 'currentSearchResult'
+      : 'selectedCell';
     if (!targetCell) return;
     if (targetCell.row < 0 || targetCell.row >= rows.length || targetCell.col < 0 || targetCell.col >= headers.length) return;
+    const recentGridSelection = lastSelectionChangeRef.current;
+    if (
+      targetSource === 'selectedCell' &&
+      recentGridSelection?.row === targetCell.row &&
+      recentGridSelection.col === targetCell.col &&
+      Date.now() - recentGridSelection.timestamp < 500
+    ) {
+      return;
+    }
 
     const columnOffset = columns
       .slice(0, targetCell.col)
@@ -177,13 +192,30 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
     ) {
       commitActiveEdit({ exitEditing: true, blur: true });
     }
+    lastSelectionChangeRef.current = {
+      row: mapped.selectedCell?.row,
+      col: mapped.selectedCell?.col,
+      timestamp: Date.now(),
+    };
+    if (editorState.currentSearchResult) {
+      setCurrentResultIndex(-1);
+      setCurrentSearchResult(undefined);
+    }
     setSelectedCell(mapped.selectedCell?.row, mapped.selectedCell?.col);
     if (mapped.selectedRange) {
       setSelectedRange(mapped.selectedRange.start, mapped.selectedRange.end);
     } else {
       setSelectedRange(undefined);
     }
-  }, [headers.length, rows.length, setSelectedCell, setSelectedRange]);
+  }, [
+    headers.length,
+    rows.length,
+    selectedFileId,
+    setCurrentResultIndex,
+    setCurrentSearchResult,
+    setSelectedCell,
+    setSelectedRange,
+  ]);
 
   const handleCellEdited = useCallback((cell: Item, newValue: EditableGridCell) => {
     if (!selectedFileId) return;
