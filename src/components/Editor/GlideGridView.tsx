@@ -14,6 +14,7 @@ import {
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
+import { commitActiveEdit } from '../../services/edit-session-service';
 import { CSVRow } from '../../types';
 import { detectBooleanColumns } from '../../utils/toggle-column';
 import ContextMenu, { MenuItem } from './ContextMenu';
@@ -165,6 +166,17 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
       rowCount: rows.length,
       colCount: headers.length,
     });
+    const editorState = useEditorStore.getState();
+    if (
+      editorState.isEditing &&
+      mapped.selectedCell &&
+      (
+        editorState.editingCell?.row !== mapped.selectedCell.row ||
+        editorState.editingCell?.col !== mapped.selectedCell.col
+      )
+    ) {
+      commitActiveEdit({ exitEditing: true, blur: true });
+    }
     setSelectedCell(mapped.selectedCell?.row, mapped.selectedCell?.col);
     if (mapped.selectedRange) {
       setSelectedRange(mapped.selectedRange.start, mapped.selectedRange.end);

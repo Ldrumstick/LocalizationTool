@@ -114,6 +114,7 @@ jest.mock('@glideapps/glide-data-grid', () => {
 });
 
 const glideMock = jest.requireMock('@glideapps/glide-data-grid') as {
+  CompactSelection: { empty: () => unknown };
   __mockState: { lastProps: any; scrollTo: jest.Mock };
 };
 
@@ -187,6 +188,50 @@ describe('GlideGridView 富文本编辑预览', () => {
     });
 
     expect(screen.queryByText('Edited once')).not.toBeInTheDocument();
+  });
+
+  test('富文本编辑中选择其他单元格会提交当前编辑并退出编辑状态', () => {
+    const file = createFile();
+
+    act(() => {
+      useProjectStore.setState({
+        ...useProjectStore.getState(),
+        files: { 'file-1': file },
+        ignoredFileIds: [],
+        groups: {},
+        keyIndex: {}
+      });
+
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 0, col: 1 },
+        selectedRange: undefined,
+        isEditing: true,
+        editingCell: { row: 0, col: 1 },
+        editingLocation: 'editor-bar',
+        tempValue: 'Edited before cell switch',
+        originalValue: 'Original value'
+      });
+    });
+
+    render(<GlideGridView headers={file.headers} rows={file.rows} />);
+
+    act(() => {
+      glideMock.__mockState.lastProps.onGridSelectionChange({
+        current: {
+          cell: [1, 1],
+          range: { x: 1, y: 1, width: 1, height: 1 },
+          rangeStack: []
+        },
+        rows: glideMock.CompactSelection.empty(),
+        columns: glideMock.CompactSelection.empty(),
+      });
+    });
+
+    expect(useProjectStore.getState().files['file-1'].rows[0].cells[1]).toBe('Edited before cell switch');
+    expect(useEditorStore.getState().isEditing).toBe(false);
+    expect(useEditorStore.getState().selectedCell).toEqual({ row: 1, col: 1 });
   });
 
   test('文本单元格编辑使用 Glide 原生 overlay 行为', () => {
