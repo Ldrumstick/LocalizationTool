@@ -14,6 +14,7 @@ jest.mock('@glideapps/glide-data-grid', () => {
   const ReactModule = require('react');
   const mockState = {
     lastProps: undefined as any,
+    scrollTo: jest.fn(),
   };
 
   class CompactSelection {
@@ -56,8 +57,11 @@ jest.mock('@glideapps/glide-data-grid', () => {
     }
   }
 
-  const DataEditor = ReactModule.forwardRef((props: any, _ref: React.Ref<any>) => {
+  const DataEditor = ReactModule.forwardRef((props: any, ref: React.Ref<any>) => {
     mockState.lastProps = props;
+    ReactModule.useImperativeHandle(ref, () => ({
+      scrollTo: mockState.scrollTo,
+    }));
     const items: React.ReactNode[] = [];
     for (let rowIndex = 0; rowIndex < props.rows; rowIndex += 1) {
       for (let columnIndex = 0; columnIndex < props.columns.length; columnIndex += 1) {
@@ -110,7 +114,7 @@ jest.mock('@glideapps/glide-data-grid', () => {
 });
 
 const glideMock = jest.requireMock('@glideapps/glide-data-grid') as {
-  __mockState: { lastProps: any };
+  __mockState: { lastProps: any; scrollTo: jest.Mock };
 };
 
 const initialProjectState = useProjectStore.getState();
@@ -142,6 +146,7 @@ describe('GlideGridView 富文本编辑预览', () => {
       useEditorStore.setState(initialEditorState, true);
     });
     localStorage.clear();
+    glideMock.__mockState.scrollTo.mockClear();
   });
 
   test('富文本编辑时更新 tempValue 应立即刷新表格中的当前单元格预览', async () => {
@@ -458,5 +463,158 @@ describe('GlideGridView 富文本编辑预览', () => {
         style: 'dashed',
       },
     ]);
+  });
+
+  test('当前搜索结果变化时会重新滚动到已选中的目标单元格', async () => {
+    const file = createFile();
+
+    act(() => {
+      useProjectStore.setState({
+        ...useProjectStore.getState(),
+        files: { 'file-1': file },
+        ignoredFileIds: [],
+        groups: {},
+        keyIndex: {}
+      });
+
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 1, col: 1 },
+        selectedRange: undefined,
+        currentSearchResult: undefined,
+      });
+    });
+
+    render(<GlideGridView headers={file.headers} rows={file.rows} />);
+    glideMock.__mockState.scrollTo.mockClear();
+
+    act(() => {
+      useEditorStore.getState().setCurrentSearchResult({
+        fileId: 'file-1',
+        rowIndex: 1,
+        colIndex: 1,
+        key: 'WORLD',
+        context: 'Other value',
+      });
+    });
+
+    await waitFor(() => {
+      expect(Math.floor(glideMock.__mockState.lastProps.scrollOffsetY / 36)).toBe(1);
+      expect(glideMock.__mockState.scrollTo).not.toHaveBeenCalled();
+    });
+  });
+
+  test('重复激活同一条搜索结果也会重新滚动到目标单元格', async () => {
+    const file = createFile();
+    const result = {
+      fileId: 'file-1',
+      rowIndex: 1,
+      colIndex: 1,
+      key: 'WORLD',
+      context: 'Other value',
+    };
+
+    act(() => {
+      useProjectStore.setState({
+        ...useProjectStore.getState(),
+        files: { 'file-1': file },
+        ignoredFileIds: [],
+        groups: {},
+        keyIndex: {}
+      });
+
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 1, col: 1 },
+        selectedRange: undefined,
+        currentSearchResult: result,
+      });
+    });
+
+    render(<GlideGridView headers={file.headers} rows={file.rows} />);
+    glideMock.__mockState.scrollTo.mockClear();
+
+    act(() => {
+      useEditorStore.getState().setCurrentSearchResult(result);
+    });
+
+    await waitFor(() => {
+      expect(Math.floor(glideMock.__mockState.lastProps.scrollOffsetY / 36)).toBe(1);
+      expect(glideMock.__mockState.scrollTo).not.toHaveBeenCalled();
+    });
+  });
+
+  test('目标行加载到表格后会重新执行搜索结果定位', async () => {
+    const file = createFile();
+
+    act(() => {
+      useProjectStore.setState({
+        ...useProjectStore.getState(),
+        files: { 'file-1': { ...file, rows: [] } },
+        ignoredFileIds: [],
+        groups: {},
+        keyIndex: {}
+      });
+
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 1, col: 1 },
+        selectedRange: undefined,
+        currentSearchResult: {
+          fileId: 'file-1',
+          rowIndex: 1,
+          colIndex: 1,
+          key: 'WORLD',
+          context: 'Other value',
+        },
+      });
+    });
+
+    const { rerender } = render(<GlideGridView headers={file.headers} rows={[]} />);
+    glideMock.__mockState.scrollTo.mockClear();
+
+    rerender(<GlideGridView headers={file.headers} rows={file.rows} />);
+
+    await waitFor(() => {
+      expect(Math.floor(glideMock.__mockState.lastProps.scrollOffsetY / 36)).toBe(1);
+      expect(glideMock.__mockState.scrollTo).not.toHaveBeenCalled();
+    });
+  });
+
+  test('大行号搜索结果使用目标行号计算 Glide 受控滚动偏移', async () => {
+    const rows = Array.from({ length: 6000 }, (_, index) => ({
+      rowIndex: index,
+      cells: [`KEY_${index + 1}`, `Value ${index + 1}`],
+      key: `KEY_${index + 1}`,
+    }));
+
+    act(() => {
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        selectedFileId: 'file-1',
+        selectedCell: { row: 1775, col: 1 },
+        selectedRange: undefined,
+        currentSearchResult: undefined,
+      });
+    });
+
+    render(<GlideGridView headers={['ID', 'en']} rows={rows} />);
+
+    act(() => {
+      useEditorStore.getState().setCurrentSearchResult({
+        fileId: 'file-1',
+        rowIndex: 1775,
+        colIndex: 1,
+        key: 'KEY_1776',
+        context: 'league',
+      });
+    });
+
+    await waitFor(() => {
+      expect(Math.floor(glideMock.__mockState.lastProps.scrollOffsetY / 36)).toBe(1775);
+    });
   });
 });

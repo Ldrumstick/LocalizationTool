@@ -217,7 +217,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   })),
 
   setCurrentSearchResult: (result) => set(produce((state: EditorState) => {
-    state.currentSearchResult = result;
+    state.currentSearchResult = result ? { ...result } : undefined;
   })),
 
   setCurrentResultIndex: (index) => set(produce((state: EditorState) => {

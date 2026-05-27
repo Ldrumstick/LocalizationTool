@@ -59,6 +59,7 @@ const FunctionPanel: React.FC<FunctionPanelProps> = ({ showTabs = true }) => {
 
   const setSelectedFile = useEditorStore((state) => state.setSelectedFile);
   const setSelectedCell = useEditorStore((state) => state.setSelectedCell);
+  const setSelectedRange = useEditorStore((state) => state.setSelectedRange);
   const selectedFileId = useEditorStore((state) => state.selectedFileId);
   const isEditing = useEditorStore((state) => state.isEditing);
   const editingCell = useEditorStore((state) => state.editingCell);
@@ -279,6 +280,7 @@ const FunctionPanel: React.FC<FunctionPanelProps> = ({ showTabs = true }) => {
     }
 
     setSelectedCell(rowIndex, colIndex);
+    setSelectedRange(undefined);
   };
 
   const handleSearch = (options: { query: string; preserveViewport: boolean }) => {

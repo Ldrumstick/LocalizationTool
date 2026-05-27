@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   DataEditor,
   type CellClickedEventArgs,
@@ -78,6 +78,8 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
     type: 'cell',
     targetIndex: -1,
   });
+  const [targetScrollOffset, setTargetScrollOffset] = useState<{ x?: number; y?: number }>({});
+  const scrollOffsetNudgeRef = useRef(false);
 
   const currentToggleCols = useMemo(() => {
     if (!selectedFileId) return new Set<number>();
@@ -138,10 +140,25 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
     [selectedCell, selectedRange]
   );
 
-  useEffect(() => {
-    if (!selectedCell) return;
-    gridRef.current?.scrollTo(selectedCell.col, selectedCell.row);
-  }, [selectedCell]);
+  useLayoutEffect(() => {
+    const targetCell = currentSearchResult && currentSearchResult.fileId === selectedFileId
+      ? { row: currentSearchResult.rowIndex, col: currentSearchResult.colIndex }
+      : selectedCell;
+    if (!targetCell) return;
+    if (targetCell.row < 0 || targetCell.row >= rows.length || targetCell.col < 0 || targetCell.col >= headers.length) return;
+
+    const columnOffset = columns
+      .slice(0, targetCell.col)
+      .reduce((offset, column) => offset + ('width' in column ? column.width : DEFAULT_GLIDE_COLUMN_WIDTH), 0);
+    const rowOffset = targetCell.row * GLIDE_ROW_HEIGHT;
+    const nudge = scrollOffsetNudgeRef.current ? 1 : 0;
+    scrollOffsetNudgeRef.current = !scrollOffsetNudgeRef.current;
+    const scrollOffset = {
+      x: Math.max(0, columnOffset - GLIDE_ROW_MARKER_WIDTH),
+      y: rowOffset + nudge,
+    };
+    setTargetScrollOffset(scrollOffset);
+  }, [columns, currentSearchResult, headers.length, rows.length, selectedCell, selectedFileId]);
 
   const handleGridSelectionChange = useCallback((newSelection: GridSelection) => {
     const mapped = gridSelectionToEditorSelection(newSelection, {
@@ -404,6 +421,8 @@ const GlideGridView: React.FC<GlideGridViewProps> = ({ headers, rows }) => {
         className="localization-glide-grid"
         columns={columns}
         rows={rows.length}
+        scrollOffsetX={targetScrollOffset.x}
+        scrollOffsetY={targetScrollOffset.y}
         getCellContent={getCellContent}
         getCellsForSelection={true}
         highlightRegions={validationHighlightRegions}
