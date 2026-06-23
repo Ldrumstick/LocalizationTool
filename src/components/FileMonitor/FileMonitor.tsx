@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
+import { useEditorStore } from '../../stores/editor-store';
 import { useProjectStore } from '../../stores/project-store';
 import FileConflictModal from './FileConflictModal';
+
+const cancelActiveEditForFile = (fileId: string) => {
+    const editorStore = useEditorStore.getState();
+    if (!editorStore.isEditing || editorStore.selectedFileId !== fileId) return;
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+        activeElement.blur();
+    }
+    editorStore.editorView?.contentDOM.blur?.();
+    editorStore.editorView?.dom.blur?.();
+    editorStore.exitEditMode(false);
+};
 
 const FileMonitor: React.FC = () => {
     // Actions are stable
@@ -27,6 +41,7 @@ const FileMonitor: React.FC = () => {
                setConflictFile({ id: fileId, name: fileName, data: fileData, timestamp: lastModified });
             } else {
                // If clean, auto-reload and notify
+               cancelActiveEditForFile(fileId);
                // Ensure we are using the actions from the hook or store
                // Since we are inside useEffect, we can use the ones from closure or store.getState()
                useProjectStore.getState().reloadFile(fileId, fileData, lastModified);
@@ -53,6 +68,7 @@ const FileMonitor: React.FC = () => {
                 <FileConflictModal 
                     fileName={conflictFile.name}
                     onReload={() => {
+                        cancelActiveEditForFile(conflictFile.id);
                         reloadFile(conflictFile.id, conflictFile.data, conflictFile.timestamp);
                         setConflictFile(null);
                     }}
